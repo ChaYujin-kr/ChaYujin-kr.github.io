@@ -8,8 +8,28 @@ Chirpy head 확장 지점
 - 사용자 설정 대응: prefers-reduced-motion, prefers-contrast, forced-colors
 - Google Tag Manager (배포 빌드에서만)
 {%- endcomment -%}
+<script>
+  /* 이벤트 수집 공통 함수: GTM이 없어도 오류 없이 dataLayer에만 쌓임 */
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){ dataLayer.push(arguments); }
+  window.blogTrack = (event, params = {}) => dataLayer.push({ event, ...params });
+  /* 페이지 정보: GA4 맞춤 측정기준(시리즈·카테고리·태그)으로 쓰임 */
+  dataLayer.push({
+    page_type: {{ page.layout | default: "page" | jsonify }},
+    content_series: {{ page.series | default: "" | jsonify }},
+    content_category: {{ page.categories | join: "/" | jsonify }},
+    content_tags: {{ page.tags | join: "," | jsonify }}
+  });
+  /* 동의 모드 v2: 동의 전에는 통계 쿠키를 쓰지 않음. 저장된 선택이 있으면 바로 반영 */
+  gtag("consent", "default", { analytics_storage: "denied", ad_storage: "denied", ad_user_data: "denied",
+    ad_personalization: "denied", functionality_storage: "granted", security_storage: "granted", wait_for_update: 500 });
+  try {
+    const c = JSON.parse(localStorage.getItem("consent-v1") || "null");
+    if (c && c.analytics) gtag("consent", "update", { analytics_storage: "granted" });
+  } catch {}
+</script>
 {%- if jekyll.environment == "production" %}
-<!-- Google Tag Manager: GA4 태그는 GTM 컨테이너 안에서 설정 -->
+<!-- Google Tag Manager: GA4 태그는 GTM 컨테이너 안에서 설정 (_gtm/README.md) -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-MJMC3GPS');</script>
 {%- endif %}
 <style>
@@ -38,6 +58,18 @@ Chirpy head 확장 지점
   #reading-progress { position: fixed; top: 0; left: 0; height: 3px; width: 0; z-index: 1100;
     background: var(--link-color, #0b5cad); transition: width .1s linear; }
 
+  .consent-banner { position: fixed; z-index: 1200; left: 50%; transform: translateX(-50%);
+    bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); width: min(40rem, calc(100% - 2rem));
+    background: var(--main-bg, #fff); color: var(--text-color, #1f2328); border: 1px solid var(--main-border-color, #d0d7de);
+    border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 1rem 1.1rem; font-size: .9rem; line-height: 1.6; }
+  .consent-banner h2 { font-size: 1rem; margin: 0 0 .35rem; }
+  .consent-banner p { margin: 0 0 .75rem; }
+  .consent-banner .actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+  .consent-banner button { font: inherit; padding: .45rem 1rem; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--btn-border-color, #8c959f); background: var(--main-bg, #fff); color: var(--text-color, #1f2328); }
+  .consent-banner button.primary { background: var(--link-color, #0b5cad); border-color: var(--link-color, #0b5cad); color: var(--main-bg, #fff); }
+  .consent-banner a { margin-left: auto; text-decoration: underline; text-underline-offset: 3px; }
+  .consent-banner button:focus-visible, .consent-banner a:focus-visible { outline: 3px solid var(--link-color, #0b5cad); outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) {
     #reading-progress, .series-nav summary::after { transition: none; }
   }
@@ -65,6 +97,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const total = article.offsetHeight - window.innerHeight;
     const ratio = total > 0 ? (window.scrollY - top) / total : 1;
     bar.style.width = Math.min(100, Math.max(0, ratio * 100)) + "%";
+    if (ratio >= 0.9 && !bar.dataset.done) { bar.dataset.done = "1"; blogTrack("read_complete"); }
   };
   window.addEventListener("scroll", update, { passive: true });
   window.addEventListener("resize", update);
@@ -128,6 +161,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (lang === "ko") return;
     if (!("Translator" in self)) {
       say("이 브라우저는 내장 번역을 지원하지 않아요 (최신 크롬에서 사용 가능)");
+      blogTrack("translate_select", { language: lang, result: "unsupported" });
       select.value = "ko"; return;
     }
     try {
@@ -148,9 +182,11 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       document.documentElement.lang = lang;
       currentLang = lang; say("");
+      blogTrack("translate_select", { language: lang, result: auto ? "auto" : "success" });
     } catch (err) {
       restore(); select.value = "ko";
       say("번역하지 못했어요");
+      blogTrack("translate_select", { language: lang, result: "failed" });
     }
   };
   select.addEventListener("change", () => { store.set("site-lang", select.value); translateTo(select.value); });
@@ -211,6 +247,7 @@ document.addEventListener("DOMContentLoaded", () => {
       queue = chunks(which === "summary" ? `${title}. ${summary.innerText}` : blocks());
       btn.setAttribute("aria-pressed", "true");
       say(which === "summary" ? "요약을 읽는 중" : "읽는 중");
+      blogTrack("tts_play", { mode: which, language: currentLang });
       next();
     };
     if (btnSummary) btnSummary.addEventListener("click", () => play("summary", btnSummary));
@@ -219,6 +256,7 @@ document.addEventListener("DOMContentLoaded", () => {
       rateIdx = (rateIdx + 1) % RATES.length;
       btnRate.querySelector(".tool-label").textContent = `${RATES[rateIdx]}x`;
       btnRate.setAttribute("aria-label", `읽기 속도, 현재 ${RATES[rateIdx]}배`);
+      blogTrack("tts_rate_change", { rate: RATES[rateIdx] });
       if (mode) say("다음 문장부터 적용돼요");
     });
     window.addEventListener("pagehide", () => synth.cancel());
@@ -232,3 +270,71 @@ document.addEventListener("DOMContentLoaded", () => {
   if (saved && saved !== "ko" && LANGS[saved]) { select.value = saved; translateTo(saved, true); }
 });
 </script>
+<script>
+/* 사용자 행동 이벤트 → dataLayer (GTM에서 GA4로 전달) */
+document.addEventListener("DOMContentLoaded", () => {
+  const nav = document.querySelector(".series-nav");
+  if (nav) nav.addEventListener("toggle", () => blogTrack("series_nav_toggle", { open: nav.open }));
+
+  document.addEventListener("click", e => {
+    if (e.target.closest(".code-header button")) {
+      const lang = (e.target.closest(".code-header").querySelector("[data-label-text]") || {}).dataset?.labelText || "";
+      blogTrack("code_copy", { code_language: lang });
+    }
+  });
+
+  /* 검색어: 입력을 1.5초 멈췄을 때 한 번 (2글자 이상) */
+  const input = document.getElementById("search-input");
+  let timer, last = "";
+  if (input) input.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const q = input.value.trim();
+      if (q.length >= 2 && q !== last) { last = q; blogTrack("search", { search_term: q }); }
+    }, 1500);
+  });
+});
+</script>
+{%- if jekyll.environment == "production" %}
+<script>
+/* 최초 방문 동의 배너: 선택은 localStorage("consent-v1")에 저장, 개인정보 처리방침에서 다시 열 수 있음 */
+document.addEventListener("DOMContentLoaded", () => {
+  const KEY = "consent-v1";
+  const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch { return null; } };
+  const save = analytics => {
+    const v = { analytics, ai_logging: analytics, date: new Date().toISOString().slice(0, 10) };
+    try { localStorage.setItem(KEY, JSON.stringify(v)); } catch {}
+    gtag("consent", "update", { analytics_storage: analytics ? "granted" : "denied" });
+    blogTrack("consent_update", { analytics_consent: analytics ? "granted" : "denied" });
+  };
+  const show = () => {
+    if (document.querySelector(".consent-banner")) return;
+    const box = document.createElement("section");
+    box.className = "consent-banner";
+    box.setAttribute("aria-labelledby", "consent-title");
+    box.innerHTML = `
+      <h2 id="consent-title">방문 데이터 활용 안내</h2>
+      <p>더 나은 글과 기능을 위해 방문 통계(Google 애널리틱스)와, 앞으로 추가될 AI 질문 기능의 질문 내용을
+      서비스 개선에 활용하려고 해요. 개인을 식별하는 정보는 저장하지 않아요.</p>
+      <div class="actions">
+        <button type="button" class="primary" data-choice="yes">동의</button>
+        <button type="button" data-choice="no">거부</button>
+        <a href="{{ '/privacy/' | relative_url }}">자세히 보기</a>
+      </div>`;
+    box.addEventListener("click", e => {
+      const b = e.target.closest("button[data-choice]");
+      if (!b) return;
+      save(b.dataset.choice === "yes");
+      box.remove();
+    });
+    document.body.appendChild(box);
+  };
+  if (!read()) show();
+  window.openConsentSettings = () => { show(); document.querySelector(".consent-banner button")?.focus(); };
+  document.querySelectorAll("[data-open-consent]").forEach(el => el.addEventListener("click", e => { e.preventDefault(); openConsentSettings(); }));
+  const state = document.getElementById("consent-state");
+  if (state) { const c = read(); state.textContent = !c ? "아직 선택하지 않음" : c.analytics ? `동의 (${c.date})` : `거부 (${c.date})`; }
+});
+</script>
+{%- endif %}
+
