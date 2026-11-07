@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
-  <rect width="1200" height="630" fill="#4a2a1a"/>
-  <circle cx="1040" cy="120" r="260" fill="#ff9a5c" opacity=".10"/>
-  <circle cx="1120" cy="560" r="180" fill="#ff9a5c" opacity=".08"/>
-  <text x="80" y="140" font-family="'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif" font-size="34" fill="#ff9a5c" letter-spacing="2">MLOps 실습 시리즈</text>
-  <text x="72" y="380" font-family="'Fira Code',Consolas,monospace" font-weight="700" font-size="220" fill="#ff9a5c">03</text>
+  <rect width="1200" height="630" fill="#3a1c0c"/>
+  <circle cx="1040" cy="120" r="260" fill="#ffb27f" opacity=".10"/>
+  <circle cx="1120" cy="560" r="180" fill="#ffb27f" opacity=".08"/>
+  <text x="80" y="140" font-family="'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif" font-size="34" fill="#ffb27f" letter-spacing="2">MLOps 실습 시리즈</text>
+  <text x="72" y="380" font-family="'Fira Code',Consolas,monospace" font-weight="700" font-size="220" fill="#ffb27f">03</text>
   <text x="80" y="520" font-family="'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif" font-weight="700" font-size="64" fill="#f8fafc">드리프트 판정</text>
 </svg>

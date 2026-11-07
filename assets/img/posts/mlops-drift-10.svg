@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
-  <rect width="1200" height="630" fill="#163b2e"/>
-  <circle cx="1040" cy="120" r="260" fill="#4fd1a1" opacity=".10"/>
-  <circle cx="1120" cy="560" r="180" fill="#4fd1a1" opacity=".08"/>
-  <text x="80" y="140" font-family="'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif" font-size="34" fill="#4fd1a1" letter-spacing="2">MLOps 실습 시리즈</text>
-  <text x="72" y="380" font-family="'Fira Code',Consolas,monospace" font-weight="700" font-size="220" fill="#4fd1a1">10</text>
+  <rect width="1200" height="630" fill="#0c2a20"/>
+  <circle cx="1040" cy="120" r="260" fill="#6ee7b7" opacity=".10"/>
+  <circle cx="1120" cy="560" r="180" fill="#6ee7b7" opacity=".08"/>
+  <text x="80" y="140" font-family="'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif" font-size="34" fill="#6ee7b7" letter-spacing="2">MLOps 실습 시리즈</text>
+  <text x="72" y="380" font-family="'Fira Code',Consolas,monospace" font-weight="700" font-size="220" fill="#6ee7b7">10</text>
   <text x="80" y="520" font-family="'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif" font-weight="700" font-size="64" fill="#f8fafc">판단 파이프라인</text>
 </svg>

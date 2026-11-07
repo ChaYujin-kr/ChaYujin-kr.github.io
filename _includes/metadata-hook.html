@@ -1,35 +1,151 @@
-{%- comment -%} Chirpy head 확장 지점: 시리즈 박스 스타일 + 글 읽기 진행 바 {%- endcomment -%}
+{%- comment -%}
+Chirpy head 확장 지점
+- 시리즈 목차 박스 스타일
+- 글 읽기 진행 바
+- 음성으로 듣기 (Web Speech API, 브라우저 내장: 지원하지 않으면 버튼을 만들지 않음)
+- 사용자 설정 대응: prefers-reduced-motion, prefers-contrast, forced-colors
+{%- endcomment -%}
 <style>
-  .series-nav { border: 1px solid var(--main-border-color, #e5e7eb); border-radius: 8px; padding: .65rem 1rem; margin: 0 0 1.5rem; }
+  .series-nav { border: 1px solid var(--main-border-color, #d0d7de); border-radius: 8px; padding: .65rem 1rem; margin: 0 0 1rem; }
   .series-nav summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; align-items: center; gap: .5rem; }
   .series-nav summary::-webkit-details-marker { display: none; }
-  .series-nav summary::after { content: "\25BE"; margin-left: auto; opacity: .6; transition: transform .2s; }
+  .series-nav summary::after { content: "\25BE"; margin-left: auto; transition: transform .2s; }
   .series-nav[open] summary::after { transform: rotate(180deg); }
-  .series-nav .series-count { font-weight: 400; font-size: .85em; opacity: .7; }
+  .series-nav .series-count { font-weight: 400; font-size: .85em; color: var(--text-muted-color, #57606a); }
   .series-nav ol { margin: .6rem 0 .2rem; padding-left: 1.4rem; }
   .series-nav li { margin: .2rem 0; font-size: .95em; }
   .series-nav li.current { font-weight: 700; }
-  .series-nav li.current::marker { color: var(--link-color, #2a78d6); }
+  .series-nav li.current::marker { color: var(--link-color, #0b5cad); }
+
+  .tts-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin: 0 0 1rem; }
+  .tts-bar button { font: inherit; font-size: .85rem; line-height: 1.2; padding: .4rem .75rem; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--btn-border-color, #8c959f); background: var(--main-bg, #fff); color: var(--text-color, #1f2328); }
+  .tts-bar button:hover { border-color: var(--link-color, #0b5cad); }
+  .tts-bar button[aria-pressed="true"] { background: var(--link-color, #0b5cad); border-color: var(--link-color, #0b5cad); color: var(--main-bg, #fff); }
+  .tts-bar .tts-status { font-size: .8rem; color: var(--text-muted-color, #57606a); }
+
+  .series-nav summary:focus-visible, .tts-bar button:focus-visible { outline: 3px solid var(--link-color, #0b5cad); outline-offset: 2px; }
+
   #reading-progress { position: fixed; top: 0; left: 0; height: 3px; width: 0; z-index: 1100;
-    background: var(--link-color, #2a78d6); transition: width .1s linear; }
-  @media (prefers-reduced-motion: reduce) { #reading-progress { transition: none; } .series-nav summary::after { transition: none; } }
+    background: var(--link-color, #0b5cad); transition: width .1s linear; }
+
+  @media (prefers-reduced-motion: reduce) {
+    #reading-progress, .series-nav summary::after { transition: none; }
+  }
+  @media (prefers-contrast: more) {
+    .series-nav, .tts-bar button { border-width: 2px; border-color: currentColor; }
+    .series-nav li.current { text-decoration: underline; text-underline-offset: 3px; }
+    #reading-progress { height: 4px; }
+  }
+  @media (forced-colors: active) {
+    #reading-progress { background: Highlight; }
+    .tts-bar button[aria-pressed="true"] { forced-color-adjust: none; background: Highlight; color: HighlightText; }
+  }
 </style>
 {%- if page.layout == "post" %}
 <script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const bar = document.createElement("div");
-    bar.id = "reading-progress";
-    document.body.prepend(bar);
-    const article = document.querySelector("article") || document.body;
-    const update = () => {
-      const top = article.getBoundingClientRect().top + window.scrollY;
-      const total = article.offsetHeight - window.innerHeight;
-      const ratio = total > 0 ? (window.scrollY - top) / total : 1;
-      bar.style.width = Math.min(100, Math.max(0, ratio * 100)) + "%";
-    };
-    window.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
-    update();
+document.addEventListener("DOMContentLoaded", () => {
+  /* 읽기 진행 바 (장식용이라 보조기기에서는 숨김) */
+  const bar = document.createElement("div");
+  bar.id = "reading-progress";
+  bar.setAttribute("aria-hidden", "true");
+  document.body.prepend(bar);
+  const article = document.querySelector("article") || document.body;
+  const update = () => {
+    const top = article.getBoundingClientRect().top + window.scrollY;
+    const total = article.offsetHeight - window.innerHeight;
+    const ratio = total > 0 ? (window.scrollY - top) / total : 1;
+    bar.style.width = Math.min(100, Math.max(0, ratio * 100)) + "%";
+  };
+  window.addEventListener("scroll", update, { passive: true });
+  window.addEventListener("resize", update);
+  update();
+
+  /* 음성으로 듣기 */
+  const synth = window.speechSynthesis;
+  const content = document.querySelector("article .content");
+  if (!synth || !("SpeechSynthesisUtterance" in window) || !content) return;
+
+  const title = (document.querySelector("article h1") || {}).innerText || document.title;
+  const summary = content.querySelector("blockquote.prompt-tip");
+  const RATES = [1, 1.25, 0.85];
+  let rateIdx = 0, queue = [], mode = null;
+
+  const pickVoice = () => synth.getVoices().find(v => v.lang && v.lang.toLowerCase().startsWith("ko"));
+
+  /* 본문에서 읽을 문장만 추출: 코드, 표, 시리즈 박스, 듣기 버튼은 제외 */
+  const fullText = () => {
+    const parts = [title];
+    content.querySelectorAll("h2, h3, p, li, blockquote").forEach(el => {
+      if (el.closest("pre, table, .series-nav, .tts-bar, figure")) return;
+      if (el.tagName === "LI" && el.closest("blockquote")) return;
+      if (el.tagName === "P" && el.closest("li, blockquote")) return;
+      const t = el.innerText.trim();
+      if (t) parts.push(t);
+    });
+    return parts.join("\n");
+  };
+  /* 긴 문장은 일부 브라우저에서 중간에 끊겨서 문장 단위로 나눠 차례로 읽음 */
+  const chunks = text => text.replace(/\s+/g, " ").split(/(?<=[.!?])\s+/).flatMap(s => {
+    const out = [];
+    for (let i = 0; i < s.length; i += 180) out.push(s.slice(i, i + 180));
+    return out;
+  }).filter(Boolean);
+
+  const bar2 = document.createElement("div");
+  bar2.className = "tts-bar";
+  bar2.setAttribute("role", "group");
+  bar2.setAttribute("aria-label", "이 글을 음성으로 듣기");
+  const mk = (label, extra = {}) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = label;
+    Object.entries(extra).forEach(([k, v]) => b.setAttribute(k, v));
+    bar2.appendChild(b); return b;
+  };
+  const btnSummary = summary ? mk("요약 듣기", { "aria-pressed": "false" }) : null;
+  const btnFull = mk("전체 듣기", { "aria-pressed": "false" });
+  const btnRate = mk("속도 1x", { "aria-label": "읽기 속도 바꾸기, 현재 1배" });
+  const status = document.createElement("span");
+  status.className = "tts-status"; status.setAttribute("aria-live", "polite");
+  bar2.appendChild(status);
+  (summary || content.firstElementChild).before(bar2);
+
+  const reset = msg => {
+    mode = null; queue = [];
+    [btnSummary, btnFull].forEach(b => b && b.setAttribute("aria-pressed", "false"));
+    if (btnSummary) btnSummary.textContent = "요약 듣기";
+    btnFull.textContent = "전체 듣기";
+    status.textContent = msg || "";
+  };
+  const next = () => {
+    if (!queue.length) return reset("다 읽었어요");
+    const u = new SpeechSynthesisUtterance(queue.shift());
+    u.lang = "ko-KR"; u.rate = RATES[rateIdx];
+    const v = pickVoice(); if (v) u.voice = v;
+    u.onend = () => { if (mode) next(); };
+    u.onerror = () => reset("음성을 재생하지 못했어요");
+    synth.speak(u);
+  };
+  const play = (which, btn) => {
+    const wasPlaying = mode === which;
+    synth.cancel(); reset();
+    if (wasPlaying) return status.textContent = "멈췄어요";
+    mode = which;
+    queue = chunks(which === "summary" ? `${title}. ${summary.innerText}` : fullText());
+    btn.setAttribute("aria-pressed", "true"); btn.textContent = "멈추기";
+    status.textContent = which === "summary" ? "요약을 읽는 중" : "전체를 읽는 중";
+    next();
+  };
+  if (btnSummary) btnSummary.addEventListener("click", () => play("summary", btnSummary));
+  btnFull.addEventListener("click", () => play("full", btnFull));
+  btnRate.addEventListener("click", () => {
+    rateIdx = (rateIdx + 1) % RATES.length;
+    btnRate.textContent = `속도 ${RATES[rateIdx]}x`;
+    btnRate.setAttribute("aria-label", `읽기 속도 바꾸기, 현재 ${RATES[rateIdx]}배`);
+    status.textContent = mode ? "다음 문장부터 적용돼요" : "";
   });
+  window.addEventListener("pagehide", () => synth.cancel());
+  if (synth.onvoiceschanged !== undefined) synth.onvoiceschanged = () => {};  /* 일부 브라우저는 목소리 목록을 늦게 불러옴 */
+});
 </script>
 {%- endif %}
