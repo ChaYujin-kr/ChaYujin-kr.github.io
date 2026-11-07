@@ -1,6 +1,6 @@
 ---
 title: "[MLOps 실습 시리즈] 0. 시리즈 소개"
-date: 2026-11-08 10:00:00 +0900
+date: 2026-11-08 01:00:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [mlops, series]
 ---

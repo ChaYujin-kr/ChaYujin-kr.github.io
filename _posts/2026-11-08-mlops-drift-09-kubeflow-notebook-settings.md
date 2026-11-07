@@ -1,6 +1,6 @@
 ---
 title: "[MLOps 실습 시리즈] 9. Kubeflow 노트북 설정: PodDefault, 어피니티, 톨러레이션"
-date: 2026-11-08 11:30:00 +0900
+date: 2026-11-08 01:45:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [kubeflow, kubernetes]
 ---

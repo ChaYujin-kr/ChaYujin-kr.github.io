@@ -1,6 +1,6 @@
 ---
 title: "[MLOps 실습 시리즈] 6. 지연 라벨을 위한 서빙 로그 설계"
-date: 2026-11-08 11:00:00 +0900
+date: 2026-11-08 01:30:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [logging, delayed-labels]
 ---

@@ -1,6 +1,6 @@
 ---
 title: "[MLOps 실습 시리즈] 10. KFP로 판단 파이프라인 돌려보기"
-date: 2026-11-08 11:40:00 +0900
+date: 2026-11-08 01:50:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [kubeflow, kfp, mlflow]
 ---

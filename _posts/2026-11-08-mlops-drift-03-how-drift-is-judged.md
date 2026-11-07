@@ -1,6 +1,6 @@
 ---
 title: "[MLOps 실습 시리즈] 3. 드리프트는 어떻게 판정될까"
-date: 2026-11-08 10:30:00 +0900
+date: 2026-11-08 01:15:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [drift, evidently, psi]
 ---

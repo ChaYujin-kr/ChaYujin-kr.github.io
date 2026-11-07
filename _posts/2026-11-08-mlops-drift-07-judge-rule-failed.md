@@ -1,6 +1,6 @@
 ---
 title: "[MLOps 실습 시리즈] 7. 판정 규칙을 만들었더니 6일 내내 틀렸다"
-date: 2026-11-08 11:10:00 +0900
+date: 2026-11-08 01:35:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [monitoring, calibration]
 ---

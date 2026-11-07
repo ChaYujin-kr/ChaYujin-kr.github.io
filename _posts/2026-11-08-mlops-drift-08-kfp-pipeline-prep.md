@@ -1,6 +1,6 @@
 ---
 title: "[MLOps 실습 시리즈] 8. KFP 파이프라인 준비: MLflow 설치와 컴포넌트 데이터 전달"
-date: 2026-11-08 11:20:00 +0900
+date: 2026-11-08 01:40:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [kubeflow, kfp, mlflow]
 ---

@@ -1,6 +1,6 @@
 ---
 title: "[MLOps 실습 시리즈] 1. AI와 일하면서 실력 지키기"
-date: 2026-11-08 10:10:00 +0900
+date: 2026-11-08 01:05:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [study, ai]
 ---

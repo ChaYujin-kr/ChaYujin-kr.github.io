@@ -1,6 +1,6 @@
 ---
 title: "[MLOps 실습 시리즈] 4. 드리프트 경보 ≠ 모델 고장"
-date: 2026-11-08 10:40:00 +0900
+date: 2026-11-08 01:20:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [drift, covariate-shift, concept-drift]
 ---

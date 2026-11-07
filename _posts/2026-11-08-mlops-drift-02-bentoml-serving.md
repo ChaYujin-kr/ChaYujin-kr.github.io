@@ -1,6 +1,6 @@
 ---
 title: "[MLOps 실습 시리즈] 2. BentoML로 모델 서빙하기"
-date: 2026-11-08 10:20:00 +0900
+date: 2026-11-08 01:10:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [bentoml, serving, sklearn]
 ---

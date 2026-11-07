@@ -1,6 +1,6 @@
 ---
 title: "[MLOps 실습 시리즈] 5. 경보가 울리면 재학습? 판정 기준부터 바꿔보자"
-date: 2026-11-08 10:50:00 +0900
+date: 2026-11-08 01:25:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [threshold, cost-sensitive, retraining]
 ---
