@@ -1,9 +1,20 @@
 ---
-title: "[MLOps 실습 시리즈] 6. 지연 라벨을 위한 서빙 로그 설계"
+title: "지연 라벨을 위한 서빙 로그 설계"
 date: 2026-11-08 01:30:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [logging, delayed-labels]
+description: "연결할 키가 없으면 평가 자체가 불가능하다"
+image:
+  path: /assets/img/posts/mlops-drift-06.svg
+  alt: "지연 라벨을 위한 서빙 로그 설계"
+series: mlops-drift
+series_title: "MLOps 실습 시리즈"
 ---
+
+{% include series-nav.html %}
+
+> **요약** 지연 라벨 환경에서 평가는 로그 설계에서 결정된다. 연결할 키가 없으면 평가 자체가 불가능하다.
+{: .prompt-tip }
 
 정답 라벨은 몇 달 뒤에 온다. 그때 "이 예측이 맞았나?"를 확인하려면, 서빙할 때 무엇을 남겨둬야 할까?
 
@@ -56,7 +67,3 @@ tags: [logging, delayed-labels]
 ## 연결할 때 주의할 점
 
 라벨과 연결해 평가할 때, **재학습에 쓴 고객이 평가 데이터에 섞이면** 신모델이 답을 미리 본 셈이 된다. 이번엔 1,200건 중 284명이 겹쳐서 빼고 평가했다.
-
-## 한 줄 정리
-
-지연 라벨 환경에서 평가는 로그 설계에서 결정된다. 연결할 키가 없으면 평가 자체가 불가능하다.

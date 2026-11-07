@@ -1,9 +1,20 @@
 ---
-title: "[MLOps 실습 시리즈] 8. KFP 파이프라인 준비: MLflow 설치와 컴포넌트 데이터 전달"
+title: "KFP 파이프라인 준비하기"
 date: 2026-11-08 01:40:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [kubeflow, kfp, mlflow]
+description: "MLflow를 클러스터에 설치하고, 컴포넌트끼리 데이터를 주고받는 법"
+image:
+  path: /assets/img/posts/mlops-drift-08.svg
+  alt: "KFP 파이프라인 준비하기"
+series: mlops-drift
+series_title: "MLOps 실습 시리즈"
 ---
+
+{% include series-nav.html %}
+
+> **요약** 파이프라인은 컴포넌트를 잇는 일보다, 각 파드가 무엇을 어떻게 받는지 정하는 일이 더 많다.
+{: .prompt-tip }
 
 7편의 판정 로직을 Kubeflow Pipelines(KFP)로 자동화하기 전에 준비한 것들이다.
 
@@ -55,7 +66,3 @@ KFP 컴포넌트는 클러스터 안의 파드에서 돌기 때문에, MLflow도
 **2. 패키지는 이미지에 미리 넣는다.** `packages_to_install`을 쓰면 파드가 뜰 때마다 설치한다. 이번엔 공용 이미지를 하나 만들고, 7편의 판정 코드 파일도 이미지에 넣었다. 로컬에서 검증한 코드를 복사하지 않고 **같은 파일**을 쓰기 위해서다.
 
 **3. 접속 정보는 파라미터로 넘기지 않는다.** 6장 예제는 MinIO 비밀번호를 파이프라인 파라미터로 넘겼는데, 실행 기록에 그대로 남는다. `kfp-kubernetes`의 `use_secret_as_env`로 K8s Secret을 환경 변수로 연결한다.
-
-## 한 줄 정리
-
-파이프라인은 컴포넌트를 잇는 일보다, 각 파드가 무엇을 어떻게 받는지 정하는 일이 더 많다.

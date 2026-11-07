@@ -1,0 +1,13 @@
+{%- comment -%} 시리즈 목차 박스: 글 머리말의 series 값이 같은 글을 날짜순으로 나열하고 현재 글을 강조 {%- endcomment -%}
+{%- assign series_posts = site.posts | where: "series", page.series | sort: "date" -%}
+{%- for p in series_posts -%}{%- if p.url == page.url -%}{%- assign current = forloop.index -%}{%- endif -%}{%- endfor -%}
+<details class="series-nav">
+  <summary><i class="fas fa-layer-group"></i> {{ page.series_title }} <span class="series-count">{{ current }} / {{ series_posts.size }}</span></summary>
+  <ol>
+  {%- for p in series_posts %}
+    <li{% if p.url == page.url %} class="current" aria-current="page"{% endif %}>
+      {%- if p.url == page.url -%}{{ p.title }}{%- else -%}<a href="{{ p.url | relative_url }}">{{ p.title }}</a>{%- endif -%}
+    </li>
+  {%- endfor %}
+  </ol>
+</details>

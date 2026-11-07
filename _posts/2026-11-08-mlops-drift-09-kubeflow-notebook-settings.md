@@ -1,9 +1,20 @@
 ---
-title: "[MLOps 실습 시리즈] 9. Kubeflow 노트북 설정: PodDefault, 어피니티, 톨러레이션"
+title: "Kubeflow 노트북 설정 세 가지"
 date: 2026-11-08 01:45:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [kubeflow, kubernetes]
+description: "PodDefault는 넣어주고, 어피니티는 끌어당기고, 톨러레이션은 통과시킨다"
+image:
+  path: /assets/img/posts/mlops-drift-09.svg
+  alt: "Kubeflow 노트북 설정 세 가지"
+series: mlops-drift
+series_title: "MLOps 실습 시리즈"
 ---
+
+{% include series-nav.html %}
+
+> **요약** PodDefault는 넣어주고, 어피니티는 끌어당기고, 톨러레이션은 통과시킨다.
+{: .prompt-tip }
 
 Kubeflow에서 노트북 서버를 띄울 때 나오는 옵션 세 가지. 이름은 어렵지만 비유하면 쉽다.
 
@@ -43,7 +54,3 @@ spec:
 
 - 노트북 메뉴 옵션은 `jupyter-web-app-config` ConfigMap에서 바꾼다.
 - 작업 공간 볼륨은 `/home/jovyan`에 자동으로 붙고, 기존 PVC를 데이터 볼륨으로 추가할 수 있다.
-
-## 한 줄 정리
-
-PodDefault는 넣어주고, 어피니티는 끌어당기고, 톨러레이션은 통과시킨다.

@@ -1,9 +1,20 @@
 ---
-title: "[MLOps 실습 시리즈] 10. KFP로 판단 파이프라인 돌려보기"
+title: "KFP로 판단 파이프라인 돌려보기"
 date: 2026-11-08 01:50:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [kubeflow, kfp, mlflow]
+description: "경보 뒤 네 갈래 분기. 사람이 판단할 곳은 남겨둔다"
+image:
+  path: /assets/img/posts/mlops-drift-10.svg
+  alt: "KFP로 판단 파이프라인 돌려보기"
+series: mlops-drift
+series_title: "MLOps 실습 시리즈"
 ---
+
+{% include series-nav.html %}
+
+> **요약** 자동화의 핵심은 모든 걸 자동으로 하는 게 아니라, 어디까지 자동으로 하고 어디서 사람이 판단할지 정하는 것이다.
+{: .prompt-tip }
 
 7편에서 만든 판정 규칙을 Kubeflow Pipelines로 자동화했다. 핵심은 **경보가 울리면 바로 재학습하지 않고, 판정 결과에 따라 네 갈래로 나뉘는 것**이다.
 
@@ -79,10 +90,6 @@ v1 tags: threshold = 0.1, threshold_proposed = 0.05
 - **판정 코드는 복사하지 않았다.** 로컬에서 검증한 `judge_logic.py`를 이미지에 넣어 컴포넌트가 그대로 불러온다. 로컬과 파이프라인의 판정이 어긋날 일이 없다.
 - **비밀번호는 파라미터로 넘기지 않았다.** `kfp-kubernetes`로 K8s Secret을 환경 변수로 연결했다.
 - **재학습 평가는 홀드아웃으로 했다.** 학습에 쓰지 않은 고객 20%로 챔피언과 후보를 같은 조건에서 비교했다.
-
-## 한 줄 정리
-
-자동화의 핵심은 모든 걸 자동으로 하는 게 아니라, 어디까지 자동으로 하고 어디서 사람이 판단할지 정하는 것이다.
 
 ---
 

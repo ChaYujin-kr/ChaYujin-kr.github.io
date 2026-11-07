@@ -1,9 +1,20 @@
 ---
-title: "[MLOps 실습 시리즈] 3. 드리프트는 어떻게 판정될까"
+title: "드리프트는 어떻게 판정될까"
 date: 2026-11-08 01:15:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [drift, evidently, psi]
+description: "열 단위 판정과 데이터셋 단위 판정, 그리고 시끄러운 열 하나"
+image:
+  path: /assets/img/posts/mlops-drift-03.svg
+  alt: "드리프트는 어떻게 판정될까"
+series: mlops-drift
+series_title: "MLOps 실습 시리즈"
 ---
+
+{% include series-nav.html %}
+
+> **요약** 드리프트 판정은 "어떤 열을, 몇 건씩, 어떤 기준으로" 볼지 정하는 설계 문제다. 감시할 열을 고르는 것부터 판정의 일부다.
+{: .prompt-tip }
 
 신규 채널 고객이 서서히 늘어나는 데이터를 15개 구간으로 나눠 흘려보내고, Evidently로 구간마다 드리프트를 판정했다.
 
@@ -51,7 +62,3 @@ PSI는 구간마다 `(지금 비율 − 평소 비율) × ln(지금 / 평소)`�
 ## 원핫 102열이 아니라 원본 14열을 보는 이유
 
 원핫을 하면 `workclass` 하나가 8개 열로 쪼개진다. 102열 대부분은 거의 0인 드문 열이라 `native-country`처럼 시끄럽고, "workclass_Never-worked가 바뀌었다" 같은 경보는 해석하기도 어렵다.
-
-## 한 줄 정리
-
-드리프트 판정은 "어떤 열을, 몇 건씩, 어떤 기준으로" 볼지 정하는 설계 문제다. 감시할 열을 고르는 것부터 판정의 일부다.

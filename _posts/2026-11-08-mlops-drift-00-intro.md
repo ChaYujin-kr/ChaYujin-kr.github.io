@@ -1,9 +1,18 @@
 ---
-title: "[MLOps 실습 시리즈] 0. 시리즈 소개"
+title: "MLOps 실습 시리즈를 시작하며"
 date: 2026-11-08 01:00:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [mlops, series]
+description: "고객층이 바뀌는 상황에서 모델을 서빙하고, 감시하고, 재학습을 판단하기까지 11편의 기록"
+image:
+  path: /assets/img/posts/mlops-drift-00.svg
+  alt: "MLOps 실습 시리즈를 시작하며"
+series: mlops-drift
+series_title: "MLOps 실습 시리즈"
+pin: true
 ---
+
+{% include series-nav.html %}
 
 《Design a Machine Learning System (From Scratch)》 6–7장을 실습하면서 겪은 일을 한 편에 한 주제씩 정리한다.
 
@@ -20,12 +29,12 @@ tags: [mlops, series]
 | 1 | [AI와 일하면서 실력 지키기]({% post_url 2026-11-08-mlops-drift-01-learning-with-ai %}) | 일하는 시간과 훈련하는 시간을 나눈다 |
 | 2 | [BentoML로 모델 서빙하기]({% post_url 2026-11-08-mlops-drift-02-bentoml-serving %}) | 요청 한 건은 14열인데 모델은 102열을 원한다 |
 | 3 | [드리프트는 어떻게 판정될까]({% post_url 2026-11-08-mlops-drift-03-how-drift-is-judged %}) | 열 단위 판정과 데이터셋 단위 판정, 두 단계 |
-| 4 | [드리프트 경보 ≠ 모델 고장]({% post_url 2026-11-08-mlops-drift-04-drift-is-not-failure %}) | 예측이 0%가 됐는데 정확도는 99%였다 |
-| 5 | [경보가 울리면 재학습?]({% post_url 2026-11-08-mlops-drift-05-threshold-before-retrain %}) | 판정 기준 하나 바꾼 효과가 재학습의 수십 배 |
-| 6 | [지연 라벨을 위한 로그 설계]({% post_url 2026-11-08-mlops-drift-06-logging-for-delayed-labels %}) | 고객 ID가 없으면 평가 자체가 불가능하다 |
+| 4 | [드리프트 경보는 모델 고장이 아니다]({% post_url 2026-11-08-mlops-drift-04-drift-is-not-failure %}) | 예측이 0%가 됐는데 정확도는 99%였다 |
+| 5 | [경보가 울리면 재학습? 판정 기준부터]({% post_url 2026-11-08-mlops-drift-05-threshold-before-retrain %}) | 판정 기준 하나 바꾼 효과가 재학습의 수십 배 |
+| 6 | [지연 라벨을 위한 서빙 로그 설계]({% post_url 2026-11-08-mlops-drift-06-logging-for-delayed-labels %}) | 고객 ID가 없으면 평가 자체가 불가능하다 |
 | 7 | [판정 규칙이 6일 내내 틀렸다]({% post_url 2026-11-08-mlops-drift-07-judge-rule-failed %}) | 지표가 고객층 변화를 성능 저하로 착각했다 |
-| 8 | [KFP 파이프라인 준비]({% post_url 2026-11-08-mlops-drift-08-kfp-pipeline-prep %}) | MLflow 설치와 컴포넌트 간 데이터 전달 |
-| 9 | [Kubeflow 노트북 설정]({% post_url 2026-11-08-mlops-drift-09-kubeflow-notebook-settings %}) | PodDefault, 어피니티, 톨러레이션 |
+| 8 | [KFP 파이프라인 준비하기]({% post_url 2026-11-08-mlops-drift-08-kfp-pipeline-prep %}) | MLflow 설치와 컴포넌트 간 데이터 전달 |
+| 9 | [Kubeflow 노트북 설정 세 가지]({% post_url 2026-11-08-mlops-drift-09-kubeflow-notebook-settings %}) | PodDefault, 어피니티, 톨러레이션 |
 | 10 | [KFP로 판단 파이프라인 돌려보기]({% post_url 2026-11-08-mlops-drift-10-kfp-pipeline-run %}) | 경보 후 네 갈래 분기, 사람이 판단할 곳은 남긴다 |
 
 ## 실습 환경

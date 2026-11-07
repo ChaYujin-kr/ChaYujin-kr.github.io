@@ -1,9 +1,16 @@
 ---
-title: "2023년 코드가 2026년에 깨지는 이유: 3장 실습 트러블슈팅"
+title: "2023년 코드가 2026년에 깨지는 이유"
 date: 2026-10-31 22:00:00 +0900
 categories: [MLOps, 실습 노트]
 tags: [docker, kubernetes, helm, dependency, reproducibility]
+description: "3장 실습 트러블슈팅: 고정해서 깨진 것과 고정 안 해서 깨진 것"
+image:
+  path: /assets/img/posts/ch3-reproducibility.svg
+  alt: "2023년 코드가 2026년에 깨지는 이유"
 ---
+
+> **요약** 재현성은 코드가 아니라 코드가 기대는 바깥 세상에 달려 있다. 고정할 거면 함께 움직이는 것들을 같은 시점에 묶어서 고정하자.
+{: .prompt-tip }
 
 《Design a Machine Learning System (From Scratch)》 3장은 FastAPI 앱을 Docker, Kubernetes, Helm, GitLab CI까지 올리는 실습이다. 코드는 그대로인데 거의 모든 단계에서 막혔다. 원인은 대부분 하나였다. **2023년에 고정해 둔 것들이 2026년에는 사라졌거나 바뀌어 있었다.**
 
@@ -53,7 +60,3 @@ Forbidden: pod updates may not change fields other than ...
 - 이미지 태그는 날짜가 박힌 구체적인 태그를 쓰되, 오프라인 대비로 `docker save`로 따로 보관한다.
 - 파이썬 패키지는 `pip download`로 휠을 받아둔다.
 - 실습 환경 버전(Python, 주요 패키지, K8s 도구)을 README 맨 위에 적는다.
-
-## 한 줄 정리
-
-재현성은 코드가 아니라 코드가 기대는 바깥 세상에 달려 있다. 고정할 거면 함께 움직이는 것들을 같은 시점에 묶어서 고정하자.

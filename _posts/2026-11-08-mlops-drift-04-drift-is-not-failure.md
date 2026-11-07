@@ -1,9 +1,20 @@
 ---
-title: "[MLOps 실습 시리즈] 4. 드리프트 경보 ≠ 모델 고장"
+title: "드리프트 경보는 모델 고장이 아니다"
 date: 2026-11-08 01:20:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [drift, covariate-shift, concept-drift]
+description: "예측이 0%가 됐는데 정확도는 99%였다"
+image:
+  path: /assets/img/posts/mlops-drift-04.svg
+  alt: "드리프트 경보는 모델 고장이 아니다"
+series: mlops-drift
+series_title: "MLOps 실습 시리즈"
 ---
+
+{% include series-nav.html %}
+
+> **요약** 드리프트 경보는 "입력이 바뀌었다"는 신호이지 "모델이 틀린다"는 신호가 아니다. 이상하다는 것과 틀렸다는 것은 다르다.
+{: .prompt-tip }
 
 드리프트 경보가 계속 울리던 마지막 구간에서, 모델은 200명 **전원**을 "연소득 50K 이하"로 예측했다. 예측 1 비율 0%.
 
@@ -38,7 +49,3 @@ tags: [drift, covariate-shift, concept-drift]
 1. 예측 분포가 어떻게 변했는지 본다.
 2. 소량이라도 라벨을 받아 실제 성능을 확인한다.
 3. 성능이 정상이면 재학습하지 않는다. 성능 저하가 확인될 때만 재학습한다.
-
-## 한 줄 정리
-
-드리프트 경보는 "입력이 바뀌었다"는 신호이지 "모델이 틀린다"는 신호가 아니다. 이상하다는 것과 틀렸다는 것은 다르다.

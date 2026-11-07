@@ -1,0 +1,35 @@
+{%- comment -%} Chirpy head 확장 지점: 시리즈 박스 스타일 + 글 읽기 진행 바 {%- endcomment -%}
+<style>
+  .series-nav { border: 1px solid var(--main-border-color, #e5e7eb); border-radius: 8px; padding: .65rem 1rem; margin: 0 0 1.5rem; }
+  .series-nav summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; align-items: center; gap: .5rem; }
+  .series-nav summary::-webkit-details-marker { display: none; }
+  .series-nav summary::after { content: "\25BE"; margin-left: auto; opacity: .6; transition: transform .2s; }
+  .series-nav[open] summary::after { transform: rotate(180deg); }
+  .series-nav .series-count { font-weight: 400; font-size: .85em; opacity: .7; }
+  .series-nav ol { margin: .6rem 0 .2rem; padding-left: 1.4rem; }
+  .series-nav li { margin: .2rem 0; font-size: .95em; }
+  .series-nav li.current { font-weight: 700; }
+  .series-nav li.current::marker { color: var(--link-color, #2a78d6); }
+  #reading-progress { position: fixed; top: 0; left: 0; height: 3px; width: 0; z-index: 1100;
+    background: var(--link-color, #2a78d6); transition: width .1s linear; }
+  @media (prefers-reduced-motion: reduce) { #reading-progress { transition: none; } .series-nav summary::after { transition: none; } }
+</style>
+{%- if page.layout == "post" %}
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const bar = document.createElement("div");
+    bar.id = "reading-progress";
+    document.body.prepend(bar);
+    const article = document.querySelector("article") || document.body;
+    const update = () => {
+      const top = article.getBoundingClientRect().top + window.scrollY;
+      const total = article.offsetHeight - window.innerHeight;
+      const ratio = total > 0 ? (window.scrollY - top) / total : 1;
+      bar.style.width = Math.min(100, Math.max(0, ratio * 100)) + "%";
+    };
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    update();
+  });
+</script>
+{%- endif %}

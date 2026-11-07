@@ -1,9 +1,20 @@
 ---
-title: "[MLOps 실습 시리즈] 5. 경보가 울리면 재학습? 판정 기준부터 바꿔보자"
+title: "경보가 울리면 재학습? 판정 기준부터"
 date: 2026-11-08 01:25:00 +0900
 categories: [MLOps, 실습 시리즈]
 tags: [threshold, cost-sensitive, retraining]
+description: "판정 기준 하나 바꾼 효과가 재학습의 수십 배였다"
+image:
+  path: /assets/img/posts/mlops-drift-05.svg
+  alt: "경보가 울리면 재학습? 판정 기준부터"
+series: mlops-drift
+series_title: "MLOps 실습 시리즈"
 ---
+
+{% include series-nav.html %}
+
+> **요약** 경보가 울리면 재학습보다 먼저 판정 기준을 본다. 가장 싼 개선이 가장 컸다.
+{: .prompt-tip }
 
 4편에서 모델은 망가지지 않았다는 걸 확인했다. 그럼 아무것도 안 해도 될까? 돈으로 계산해 보면 다르다.
 
@@ -55,7 +66,3 @@ AUC는 "사람들을 얼마나 잘 줄 세우는가"만 봐서 판정 기준과 
 | 마케팅 | 발송비 | 놓친 매출 | 일부러 안 보내는 홀드아웃 그룹으로 놓친 것을 잰다 |
 | 의료 | 불필요한 검사 | 진단 지연 | Decision Curve Analysis |
 | 보이스피싱 | 정상 거래 차단, 민원 | 피해액 | 경고 → 추가 인증 → 지연이체 → 차단처럼 단계를 나눈다 |
-
-## 한 줄 정리
-
-경보가 울리면 재학습보다 먼저 판정 기준을 본다. 가장 싼 개선이 가장 컸다.
