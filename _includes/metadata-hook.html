@@ -5,6 +5,7 @@ Chirpy head 확장 지점
 - 상단 바 도구 (모든 페이지): 언어 선택 + 음성으로 듣기
   · 번역: 크롬 내장 Translator API, 본문 글자만 번역하고 코드·날짜는 그대로
   · 음성: Web Speech API, 지원하지 않으면 버튼을 만들지 않음
+- AI 질문 창: assets/js/ask.js, 설정은 _data/assistant.yml (배포 빌드에서는 enabled일 때만)
 - 사용자 설정 대응: prefers-reduced-motion, prefers-contrast, forced-colors
 - Google Tag Manager (배포 빌드에서만)
 {%- endcomment -%}
@@ -54,6 +55,45 @@ Chirpy head 확장 지점
   .site-tools .tool-status { font-size: .75rem; color: var(--text-muted-color, #57606a); white-space: nowrap; }
   @media (max-width: 575.98px) { .site-tools .tool-label, .site-tools .tool-status { display: none; } .site-tools { gap: .25rem; } }
   .series-nav summary:focus-visible, .site-tools button:focus-visible, .site-tools select:focus-visible { outline: 3px solid var(--link-color, #0b5cad); outline-offset: 2px; }
+
+  /* AI 질문 패널: 오른쪽 패널, 휴대폰은 아래 시트 */
+  .ask-panel { position: fixed; z-index: 1150; top: 4.5rem; right: 1rem; width: min(26rem, calc(100% - 2rem));
+    max-height: calc(100vh - 6rem); overflow-y: auto; background: var(--main-bg, #fff); color: var(--text-color, #1f2328);
+    border: 1px solid var(--main-border-color, #d0d7de); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.18);
+    padding: .9rem 1rem 1rem; font-size: .92rem; line-height: 1.6; }
+  .ask-panel[hidden] { display: none; }
+  .ask-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+  .ask-head h2 { font-size: 1rem; margin: 0; }
+  .ask-close { font: inherit; font-size: 1.3rem; line-height: 1; width: 2rem; height: 2rem; border-radius: 999px; cursor: pointer;
+    border: 1px solid transparent; background: transparent; color: inherit; }
+  .ask-notice { font-size: .8rem; color: var(--text-muted-color, #57606a); margin: .35rem 0 .6rem; }
+  .ask-notice a, .ask-links a { text-decoration: underline; text-underline-offset: 3px; }
+  .ask-label { display: block; font-size: .82rem; margin-bottom: .3rem; }
+  .ask-form textarea { width: 100%; font: inherit; padding: .5rem .6rem; border-radius: 8px; resize: vertical;
+    border: 1px solid var(--btn-border-color, #8c959f); background: var(--main-bg, #fff); color: var(--text-color, #1f2328); }
+  .ask-human { margin: .5rem 0; min-height: 0; }
+  .ask-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+  .ask-count { font-size: .75rem; color: var(--text-muted-color, #57606a); }
+  .ask-count.over { color: #b3261e; font-weight: 700; }
+  .ask-submit, .ask-feedback button { font: inherit; padding: .4rem 1rem; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--link-color, #0b5cad); background: var(--link-color, #0b5cad); color: var(--main-bg, #fff); }
+  .ask-submit:disabled { opacity: .6; cursor: progress; }
+  .ask-out { margin-top: .8rem; }
+  .ask-out:empty { display: none; }
+  .ask-answer { margin: 0 0 .5rem; white-space: pre-wrap; }
+  .ask-error, .ask-limited { color: var(--text-muted-color, #57606a); }
+  .ask-sub { font-size: .8rem; font-weight: 600; margin: .4rem 0 .2rem; color: var(--text-muted-color, #57606a); }
+  .ask-links { margin: 0; padding-left: 1.2rem; }
+  .ask-feedback { display: flex; gap: .4rem; margin-top: .6rem; }
+  .ask-feedback button { background: var(--main-bg, #fff); color: var(--text-color, #1f2328); border-color: var(--btn-border-color, #8c959f); padding: .25rem .7rem; }
+  .ask-feedback button[aria-pressed="true"] { border-color: var(--link-color, #0b5cad); border-width: 2px; }
+  .ask-panel button:focus-visible, .ask-panel a:focus-visible, .ask-panel textarea:focus-visible { outline: 3px solid var(--link-color, #0b5cad); outline-offset: 2px; }
+  @media (max-width: 575.98px) {
+    .ask-panel { top: auto; right: 0; left: 0; bottom: 0; width: 100%; max-height: 80vh; border-radius: 16px 16px 0 0;
+      padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); }
+  }
+  @media (prefers-contrast: more) { .ask-panel, .ask-form textarea { border-width: 2px; border-color: currentColor; } }
+  @media (forced-colors: active) { .ask-submit { forced-color-adjust: none; background: ButtonText; color: ButtonFace; } }
 
   #reading-progress { position: fixed; top: 0; left: 0; height: 3px; width: 0; z-index: 1100;
     background: var(--link-color, #0b5cad); transition: width .1s linear; }
@@ -295,6 +335,20 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 </script>
+{%- comment -%} Liquid는 조건에 괄호를 못 써서 단계별로 계산 {%- endcomment -%}
+{%- assign ask = site.data.assistant -%}
+{%- assign ask_on = false -%}
+{%- if ask.enabled == true -%}{%- assign ask_on = true -%}{%- endif -%}
+{%- if jekyll.environment != "production" -%}{%- assign ask_on = true -%}{%- endif -%}
+{%- if ask.endpoint == nil or ask.endpoint == "" -%}{%- assign ask_on = false -%}{%- endif -%}
+{%- if ask_on %}
+<script>
+  /* AI 질문 창 설정 (공개 값만: 주소와 Turnstile 사이트 키) */
+  window.BLOG_ASK = { endpoint: {{ ask.endpoint | jsonify }}, sitekey: {{ ask.turnstile_sitekey | jsonify }},
+                      siteUrl: {{ site.url | jsonify }}, privacyUrl: {{ '/privacy/' | relative_url | jsonify }} };
+</script>
+<script src="{{ '/assets/js/ask.js' | relative_url }}" defer></script>
+{%- endif %}
 {%- if jekyll.environment == "production" %}
 <script>
 /* 최초 방문 동의 배너: 선택은 localStorage("consent-v1")에 저장, 개인정보 처리방침에서 다시 열 수 있음 */
@@ -314,8 +368,8 @@ document.addEventListener("DOMContentLoaded", () => {
     box.setAttribute("aria-labelledby", "consent-title");
     box.innerHTML = `
       <h2 id="consent-title">방문 데이터 활용 안내</h2>
-      <p>더 나은 글과 기능을 위해 방문 통계(Google 애널리틱스)와, 앞으로 추가될 AI 질문 기능의 질문 내용을
-      서비스 개선에 활용하려고 해요. 개인을 식별하는 정보는 저장하지 않아요.</p>
+      <p>더 나은 글과 기능을 위해 방문 통계(Google 애널리틱스)와 AI 질문 기능의 질문 내용(개인정보로 보이는 부분은 가린 뒤 90일)을
+      서비스 개선에 활용하려고 해요. 거부해도 모든 기능을 그대로 쓸 수 있어요.</p>
       <div class="actions">
         <button type="button" class="primary" data-choice="yes">동의</button>
         <button type="button" data-choice="no">거부</button>

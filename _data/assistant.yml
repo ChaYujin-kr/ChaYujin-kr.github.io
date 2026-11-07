@@ -1,0 +1,6 @@
+# AI 질문 창 설정 (assets/js/ask.js). 게이트웨이: ~/llmops-blog-assistant/gateway
+# enabled: 배포 빌드에서 질문 창을 켤지. 게이트웨이 배포(G4) 전에는 false.
+enabled: false
+endpoint: ""            # 예: https://blog-assistant-ask.<계정>.workers.dev (G4에서 채움)
+# Turnstile 사이트 키(공개 값). 아래는 Cloudflare 공식 테스트 키(항상 통과) — G4에서 실제 키로 교체.
+turnstile_sitekey: "1x00000000000000000000AA"
