@@ -29,3 +29,8 @@ order: 5
 - GitHub: [ChaYujin-kr](https://github.com/ChaYujin-kr)
 - LinkedIn: [차유진](https://www.linkedin.com/in/%EC%9C%A0%EC%A7%84-%EC%B0%A8-776868212)
 - Velog: [@chaujin00](https://velog.io/@chaujin00/posts)
+
+## 방문 통계와 번역 안내
+
+- 이 블로그는 방문 통계를 위해 Google 태그 관리자와 Google 애널리틱스를 사용합니다. 쿠키로 페이지 조회, 유입 경로, 기기 종류 같은 익명 통계를 수집하며, 개인을 식별하는 정보는 수집하지 않습니다. 브라우저의 쿠키 차단이나 [Google 애널리틱스 차단 부가기능](https://tools.google.com/dlpage/gaoptout)으로 거부할 수 있습니다.
+- 글 상단의 번역 링크를 누르면 Google 번역이 페이지를 번역해 보여줍니다. 기계 번역이라 표현이 어색할 수 있습니다.
