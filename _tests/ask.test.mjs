@@ -74,3 +74,14 @@ test("이전 대화: 최근 3턴만, 답하지 못한 턴은 답 비움, 길이 
   assert.equal("history" in core.buildRequest("q", "t", false, "/"), false);
   assert.equal(core.buildRequest("q", "t", false, "/", h).history.length, 3);
 });
+
+test("답 서식: 문단·목록·굵게·코드만, 링크 문법은 글자 그대로", () => {
+  const b = core.parseRich("첫 줄 **중요** `x=1`\n\n- 하나\n- 둘\n1. 셋\n```\nprint(1)\n```\n[a](http://e)");
+  assert.deepEqual(b.map((x) => x.type), ["p", "list", "list", "code", "p"]);
+  assert.deepEqual(b[0].inlines.map((x) => x.t), ["text", "b", "text", "code"]);
+  assert.equal(b[1].items.length, 2);
+  assert.equal(b[2].ordered, true);
+  assert.equal(b[3].text, "print(1)");
+  assert.deepEqual(b[4].inlines, [{ t: "text", v: "[a](http://e)" }]);
+  assert.deepEqual(core.parseRich(""), []);
+});

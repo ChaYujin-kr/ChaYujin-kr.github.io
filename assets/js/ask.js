@@ -35,6 +35,47 @@
     catch { return false; }
   }
 
+  /** 답 서식: 문단, 목록(- / 1.), **굵게**, `코드`, ``` 코드 블록만. 링크·이미지·HTML은 다루지 않는다(서버 가드가 이미 제거).
+   *  결과는 글자 조각의 트리이고, 화면에는 textContent로만 넣는다(innerHTML 없음). */
+  function parseInline(text) {
+    const out = [];
+    for (const part of String(text).split(/(\*\*[^*\n]+\*\*|`[^`\n]+`)/)) {
+      if (!part) continue;
+      if (part.startsWith("**") && part.endsWith("**") && part.length > 4) out.push({ t: "b", v: part.slice(2, -2) });
+      else if (part.startsWith("`") && part.endsWith("`") && part.length > 2) out.push({ t: "code", v: part.slice(1, -1) });
+      else out.push({ t: "text", v: part });
+    }
+    return out;
+  }
+  function parseRich(text) {
+    const blocks = [];
+    const lines = String(text || "").split("\n");
+    let para = null, list = null;
+    const flush = () => { para = null; list = null; };
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (/^\s*```/.test(line)) {
+        flush();
+        const code = [];
+        for (i++; i < lines.length && !/^\s*```/.test(lines[i]); i++) code.push(lines[i]);
+        blocks.push({ type: "code", text: code.join("\n") });
+        continue;
+      }
+      const m = line.match(/^\s*(?:([-*•])|(\d{1,3})[.)])\s+(.*)$/);
+      if (m) {
+        const ordered = !!m[2];
+        if (!list || list.ordered !== ordered) { para = null; list = { type: "list", ordered, items: [] }; blocks.push(list); }
+        list.items.push(parseInline(m[3]));
+        continue;
+      }
+      if (!line.trim()) { flush(); continue; }
+      list = null;
+      if (!para) { para = { type: "p", lines: [] }; blocks.push(para); }
+      para.lines.push(line);
+    }
+    return blocks.map((b) => (b.type === "p" ? { type: "p", inlines: parseInline(b.lines.join("\n")) } : b));
+  }
+
   /** 이전 대화 최근 3턴(질문 300자, 답 600자). 답하지 못한 턴은 답을 비운다. 서버가 다시 자르고 가린다. */
   function recentTurns(history) {
     if (!Array.isArray(history)) return [];
@@ -84,7 +125,7 @@
     return { events, rest };
   }
 
-  const core = { MAX_CHARS, cpLen, safeLinks, readConsent, buildRequest, recentTurns, lenBucket, formatSeconds, interpret, parseSSE };
+  const core = { MAX_CHARS, cpLen, safeLinks, readConsent, buildRequest, recentTurns, parseRich, lenBucket, formatSeconds, interpret, parseSSE };
   if (typeof module !== "undefined" && module.exports) { module.exports = core; return; }
   root.BlogAskCore = core;
 
@@ -171,7 +212,7 @@
     const card = el("div", { class: "ask-card" });
     const form = el("form", { class: "ask-form" });
     const box = el("div", { class: "ask-box" });
-    const input = el("textarea", { id: "ask-input", rows: "1", placeholder: "질문 입력 (개인정보 제외)",
+    const input = el("textarea", { id: "ask-input", rows: "1", placeholder: "질문 입력 (개인정보 제외) · 코드는 ``` 로 감싸기",
                                    "aria-label": "질문", "aria-describedby": "ask-count" });
     const send = el("button", { type: "submit", class: "ask-send", "aria-label": "보내기", disabled: "" });
     send.innerHTML = ICON.send;
@@ -271,15 +312,44 @@
       count.classList.toggle("over", n > MAX_CHARS);
       send.disabled = busy || !input.value.trim() || n > MAX_CHARS;
       input.style.height = "auto";
-      input.style.height = Math.min(input.scrollHeight, 136) + "px";
+      input.style.height = Math.min(input.scrollHeight, input.value.includes("```") ? 240 : 136) + "px";
     };
     input.addEventListener("input", onInput);
+    const inFence = () => (input.value.slice(0, input.selectionStart).match(/```/g) || []).length % 2 === 1;
     input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit("enter"); }
+      if (e.key === "Tab" && !e.shiftKey && inFence()) {      // 코드 블록 안: Tab = 공백 2칸
+        e.preventDefault();
+        input.setRangeText("  ", input.selectionStart, input.selectionEnd, "end"); onInput(); return;
+      }
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing && !inFence()) { e.preventDefault(); submit("enter"); }
     });
     form.addEventListener("submit", (e) => { e.preventDefault(); submit("button"); });
 
     const scrollDown = () => { log.scrollTop = log.scrollHeight; };
+
+    function inlineNodes(parent, inlines) {
+      for (const n of inlines) parent.append(n.t === "text" ? doc.createTextNode(n.v) : el(n.t === "b" ? "strong" : "code", null, n.v));
+    }
+    function renderRich(target, text) {
+      target.replaceChildren();
+      for (const b of parseRich(text)) {
+        if (b.type === "p") { const p = el("p"); inlineNodes(p, b.inlines); target.append(p); }
+        else if (b.type === "list") {
+          const ul = el(b.ordered ? "ol" : "ul");
+          for (const it of b.items) { const li = el("li"); inlineNodes(li, it); ul.append(li); }
+          target.append(ul);
+        } else { const pre = el("pre"); pre.append(el("code", null, b.text)); target.append(pre); }
+      }
+    }
+    function copyButton(getText) {
+      const b = el("button", { type: "button", class: "ask-copy", "aria-label": "답 복사" }, "복사");
+      b.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(getText()); b.textContent = "복사됨"; }
+        catch { b.textContent = "복사 안 됨"; }
+        setTimeout(() => { b.textContent = "복사"; }, 1500);
+      });
+      return b;
+    }
 
     function botMessage() {
       const wrap = el("div", { class: "ask-msg bot is-streaming", "aria-busy": "true" });
@@ -296,7 +366,7 @@
         meta.textContent = `${text.textContent ? "작성 중" : "답변 생성 중"} · ${Math.floor((performance.now() - t0) / 1000)}초`;
       }, 250);
       return {
-        set(t) { if (t) thinking.remove(); text.textContent = t; scrollDown(); },
+        set(t) { if (t) thinking.remove(); renderRich(text, t); scrollDown(); },
         finish(state, links, msOverride) {
           clearInterval(tick);
           const ms = msOverride != null ? msOverride : performance.now() - t0;
@@ -304,8 +374,9 @@
           wrap.classList.remove("is-streaming");
           wrap.setAttribute("aria-busy", "false");
           if (state.kind !== "answered") wrap.classList.add(state.kind === "none" ? "is-none" : "is-error");
-          text.textContent = state.text;
+          if (state.kind === "answered") renderRich(text, state.text); else text.textContent = state.text;
           meta.textContent = state.kind === "answered" ? `${formatSeconds(ms)} · 근거 ${links.length}개` : formatSeconds(ms);
+          if (state.kind === "answered") meta.append(" · ", copyButton(() => state.text));
           if (links.length) {
             const ul = el("ul", { class: "ask-sources", "aria-label": "근거 단락" });
             for (const l of links) {
