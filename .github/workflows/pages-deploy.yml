@@ -50,9 +50,10 @@ jobs:
           bundler-cache: true
 
       - name: Build site
-        run: bundle exec jekyll b -d "_site${{ steps.pages.outputs.base_path }}"
+        run: bundle exec jekyll b -d "_site${BASE_PATH}"   # 출력값은 환경 변수로만 전달(셸에 직접 펼치지 않음)
         env:
           JEKYLL_ENV: "production"
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
 
       - name: Test site
         run: |
