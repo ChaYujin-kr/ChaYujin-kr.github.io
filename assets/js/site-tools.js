@@ -70,26 +70,28 @@
   }
   doc.addEventListener("click", (e) => { if (openMenu && !openMenu.menu.contains(e.target)) closeMenu(); });
 
-  /* ── 사이드바 접기: 화면 깜빡임을 줄이려고 클래스는 head의 인라인 스크립트가 먼저 붙인다 ── */
+  /* ── 사이드바 접기: 버튼은 사이드바 안 오른쪽 위(패널 아이콘). 접히면 화면 왼쪽 위에 같은 아이콘으로 펼치기 버튼.
+        화면 깜빡임을 줄이려고 접힘 클래스는 head의 인라인 스크립트가 먼저 붙인다 ── */
+  const PANEL_LEFT = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">'
+    + '<g fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="5" width="17" height="14" rx="3"/>'
+    + '<path d="M9 5v14"/></g></svg>';
   function sidebarToggle() {
-    const topbar = doc.getElementById("topbar");
-    if (!topbar) return;
-    const b = iconBtn("fa-angles-left", "사이드바 접기", { class: "sb-toggle" });
-    const sync = () => {
-      const c = html.classList.contains("sb-collapsed");
-      b.innerHTML = `<i class="fas ${c ? "fa-angles-right" : "fa-angles-left"}" aria-hidden="true"></i>`;
-      b.setAttribute("aria-label", c ? "사이드바 펼치기" : "사이드바 접기");
-      b.title = b.getAttribute("aria-label");
-      b.setAttribute("aria-pressed", String(c));
+    const sidebar = doc.getElementById("sidebar");
+    if (!sidebar) return;
+    const fold = el("button", { type: "button", class: "sb-toggle sb-fold", "aria-label": "사이드바 접기", title: "사이드바 접기" });
+    const unfold = el("button", { type: "button", class: "sb-toggle sb-unfold", "aria-label": "사이드바 펼치기", title: "사이드바 펼치기" });
+    fold.innerHTML = PANEL_LEFT;
+    unfold.innerHTML = PANEL_LEFT;
+    const set = (collapsed) => {
+      html.classList.toggle("sb-collapsed", collapsed);
+      store.set("sidebar-collapsed", collapsed ? "1" : "0");
+      (collapsed ? unfold : fold).focus({ preventScroll: true });
+      track("sidebar_toggle", { collapsed });
     };
-    b.addEventListener("click", () => {
-      html.classList.toggle("sb-collapsed");
-      store.set("sidebar-collapsed", html.classList.contains("sb-collapsed") ? "1" : "0");
-      sync();
-      track("sidebar_toggle", { collapsed: html.classList.contains("sb-collapsed") });
-    });
-    sync();
-    topbar.prepend(b);
+    fold.addEventListener("click", () => set(true));
+    unfold.addEventListener("click", () => set(false));
+    sidebar.append(fold);
+    doc.body.append(unfold);
   }
 
   /* ── 다크/라이트: 사이드바 아래 아이콘 하나. 기본은 시스템 설정을 따르고, 아이콘은 "누르면 바뀔 모드"

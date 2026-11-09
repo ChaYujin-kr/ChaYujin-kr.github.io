@@ -79,25 +79,23 @@
     const rec = recommend(posts, here, history);
     if (!rec.primary) return;
 
-    const card = el("aside", { class: "rec-card", role: "complementary", "aria-label": "다 읽으셨어요 — 다음 글 추천" });
+    // 항목마다 "왜 이 글인지" 짧은 꼬리표: 다음 글 / 같은 시리즈 / 비슷한 글 / 추천 글
+    const label = (reason) => reason === "시리즈 다음 편" ? "다음 글" : reason === "같은 시리즈" ? "같은 시리즈"
+      : String(reason).startsWith("같은 주제") ? "비슷한 글" : "추천 글";
+    const card = el("aside", { class: "rec-card", role: "complementary", "aria-label": "이어서 읽기" });
     const head = el("div", { class: "rec-head" });
-    head.append(el("strong", null, "다 읽으셨어요"));
+    head.append(el("strong", null, "이어서 읽기"));
     const close = el("button", { type: "button", class: "rec-close", "aria-label": "닫기" }, "×");
     head.append(close);
-    const main = el("a", { class: "rec-primary", href: rec.primary.post.url });
-    main.append(el("span", { class: "rec-title" }, rec.primary.post.title));   // 제목만(2026-11-10 요청)
-    main.addEventListener("click", () => track("rec_click", { type: rec.primary.reason === "시리즈 다음 편" ? "series_next" : "primary" }));
-    card.append(head, main);
-    if (rec.more.length) {
-      const ul = el("ul", { class: "rec-more", "aria-label": "이런 글은 어때요" });
-      for (const m of rec.more) {
-        const a = el("a", { href: m.post.url });
-        a.append(el("span", { class: "rec-title" }, m.post.title));
-        a.addEventListener("click", () => track("rec_click", { type: "related" }));
-        const li = el("li"); li.append(a); ul.append(li);
-      }
-      card.append(ul);
+    const ul = el("ul", { class: "rec-items" });
+    const items = [{ ...rec.primary, primary: true }, ...rec.more];
+    for (const it of items) {
+      const a = el("a", { class: "rec-item" + (it.primary ? " is-primary" : ""), href: it.post.url });
+      a.append(el("span", { class: "rec-label" }, label(it.reason)), el("span", { class: "rec-title" }, it.post.title));
+      a.addEventListener("click", () => track("rec_click", { type: label(it.reason) }));
+      const li = el("li"); li.append(a); ul.append(li);
     }
+    card.append(head, ul);
     const list = el("a", { class: "rec-list", href: cfg.listUrl || "/" }, "목록으로");
     list.addEventListener("click", () => track("rec_click", { type: "list" }));
     card.append(list);

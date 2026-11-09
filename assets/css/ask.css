@@ -206,3 +206,6 @@ html.ask-open .ask-panel { transform: none; visibility: visible; transition: tra
 }
 @media (forced-colors: active) { .ask-welcome h3 { color: CanvasText; background: none; } }
 .ask-welcome .ask-badge svg { width: 40px; height: 40px; }
+
+/* 다크: 패널은 바탕(#121212)보다 한 단계 밝은 면(그림자 대신 밝기로 층 구분) */
+:root[data-bs-theme="dark"] .ask-panel { --ask-bg: #1c1c1e; --ask-border: #2c2c30; }

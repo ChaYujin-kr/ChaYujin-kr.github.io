@@ -107,7 +107,7 @@
     sparkGrad: `<span class="ask-badge">${svg(BOT("ask-steel-b"))}</span>`,
     send: svg('<path d="M12 4l7 7-1.4 1.4L13 7.8V20h-2V7.8l-4.6 4.6L5 11z"/>'),
     close: svg('<path d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7 4.3 4.3l6.3 6.3 6.3-6.3z"/>'),
-    collapse: svg('<path d="M9.3 5.3 15.9 12l-6.6 6.7-1.4-1.4 5.2-5.3-5.2-5.3z"/>'),
+    collapse: svg('<g fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="5" width="17" height="14" rx="3"/><path d="M15 5v14"/></g>'),
     down: svg('<path d="M5.3 8.3 12 14.9l6.7-6.6 1.4 1.4L12 17.8 3.9 9.7z"/>'),
     reset: svg('<path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z"/>'),
   };
@@ -216,6 +216,12 @@
       return "";
     };
 
+    /* 대화 기록: 이 탭이 열려 있는 동안 유지(sessionStorage, 서버로 안 보냄). 근거 링크로 다른 글에 가도 이어진다. */
+    const HKEY = "ask-history-v1";
+    const loadHistory = () => { try { const h = JSON.parse(session.get(HKEY) || "[]"); return Array.isArray(h) ? h.slice(-20) : []; } catch { return []; } };
+    const saveHistory = (h) => session.set(HKEY, JSON.stringify(h.slice(-20)));
+    let history = loadHistory();
+
     const showEmpty = () => {
       log.replaceChildren();
       const w = el("div", { class: "ask-welcome" });
@@ -244,7 +250,7 @@
     launcher.addEventListener("click", () => open("launcher"));
     if (topBtn) topBtn.addEventListener("click", () => (html.classList.contains("ask-open") ? close() : open("topbar")));
     btnClose.addEventListener("click", close);
-    btnNew.addEventListener("click", () => { if (!busy) { showEmpty(); input.focus(); } });
+    btnNew.addEventListener("click", () => { if (!busy) { history = []; saveHistory(history); showEmpty(); input.focus(); } });
     panel.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
     if (session.get("ask-open") === "1" && !mobileMq.matches) open("restore");
 
@@ -280,9 +286,9 @@
       }, 250);
       return {
         set(t) { if (t) thinking.remove(); text.textContent = t; scrollDown(); },
-        finish(state, links) {
+        finish(state, links, msOverride) {
           clearInterval(tick);
-          const ms = performance.now() - t0;
+          const ms = msOverride != null ? msOverride : performance.now() - t0;
           thinking.remove();
           wrap.classList.remove("is-streaming");
           wrap.setAttribute("aria-busy", "false");
@@ -378,10 +384,24 @@
         if (root.turnstile && widgetId !== null) root.turnstile.reset(widgetId);   // 토큰은 1회용
       }
       const ms = msg.finish(state, links);
+      history.push({ q, kind: state.kind, text: state.text, links, ms: Math.round(ms) });
+      saveHistory(history);
       busy = false; onInput();
       if (!mobileMq.matches) input.focus();
       track("ai_ask", { result: state.kind, q_len: lenBucket(cpLen(q)), seconds: Math.round(ms / 1000),
                         consent: readConsent(storage) ? "yes" : "no", via });
+    }
+
+    /* 이전 대화 복원(근거 링크로 다른 글로 넘어와도 이어짐) */
+    if (history.length) {
+      log.replaceChildren();
+      exBox.hidden = true;
+      for (const h of history) {
+        log.append(el("div", { class: "ask-msg user" }, String(h.q || "")));
+        const kind = ["answered", "none", "error"].includes(h.kind) ? h.kind : "error";
+        botMessage().finish({ kind, text: String(h.text || ""), answerId: null },
+                            safeLinks(h.links, cfg.siteUrl), Number(h.ms) || 0);
+      }
     }
   }
 

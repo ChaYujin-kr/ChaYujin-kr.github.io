@@ -53,17 +53,17 @@ html:not([data-bs-theme=dark]) img[src$="/llmops-pipeline-dark.svg"] { content: 
 
 html:root[data-bs-theme=dark] {   /* html:root = 테마 기본값(:root[...])보다 한 단계 높은 우선순위 */
   /* 다크: Cloudflare 대시보드 참고 — 거의 검정 바탕, 밝은 파랑 링크, 오렌지 포인트.
-     링크 #6cb2ff는 #0c0c0e 배경에서 9.0:1, 오렌지 #ff9a3d는 9.4:1 */
+     바탕 #121212(머티리얼 다크), 층마다 한 단계 밝게(#1c1c1e → #252528 → #303034). 링크 #6cb2ff 8.4:1, 오렌지 #ff9a3d 8.9:1 */
   --cl-accent: #6cb2ff; --cl-accent-2: #ff9a3d; --cl-fill: #2f7cf6; --cl-fill-2: #4d90f8; --cl-on-fill: #ffffff;
   --cl-line: #2c4f7a; --cl-ring: 108, 178, 255;
   --link-color: var(--cl-accent); --toc-highlight: var(--cl-accent-2); --btn-share-hover-color: var(--cl-accent);
   --bs-link-color: var(--cl-accent); --bs-link-color-rgb: 108, 178, 255; --bs-link-hover-color: #9ccbff;
   --bs-link-hover-color-rgb: 156, 203, 255;
-  --main-bg: #0c0c0e; --sidebar-bg: #0c0c0e; --topbar-bg: rgba(12, 12, 14, .82); --card-bg: #151518;
-  --main-border-color: #26262b; --sidebar-border-color: #1f1f23; --border-color: #26262b;
-  --sidebar-hover-bg: #17171b; --sidebar-btn-bg: #151518; --menu-bg: #151518; --card-header-bg: #151518;
-  --button-bg: #151518; --btn-border-color: #26262b; --search-border-color: #2a2a2f; --mask-bg: #2a2a2f;
-  --img-bg: #0c0c0e; --post-list-text-color: #c9cdd2; --site-title-color: #d6d9dd; --blockquote-text-color: #a3a8b0;
+  --main-bg: #121212; --sidebar-bg: #121212; --topbar-bg: rgba(18, 18, 18, .85); --card-bg: #1c1c1e;
+  --main-border-color: #2a2a2e; --sidebar-border-color: #222225; --border-color: #2a2a2e;
+  --sidebar-hover-bg: #1e1e21; --sidebar-btn-bg: #1c1c1e; --menu-bg: #1c1c1e; --card-header-bg: #1c1c1e;
+  --button-bg: #1c1c1e; --btn-border-color: #2a2a2e; --search-border-color: #2c2c30; --mask-bg: #2c2c30;
+  --img-bg: #121212; --post-list-text-color: #c9cdd2; --site-title-color: #d6d9dd; --blockquote-text-color: #a3a8b0;
   /* 본문은 고대비, 주변부는 한 단계 낮춤 */
   --text-color: #e9ebee; --heading-color: #ffffff; --text-muted-color: #8b9099;
 }
@@ -106,17 +106,20 @@ html .form-control:focus, html .nav-link:focus-visible { box-shadow: 0 0 0 .25re
 html .btn-close { --bs-btn-close-focus-shadow: 0 0 0 .25rem rgba(var(--cl-ring), .3); }
 ::selection { background: rgba(var(--cl-ring), .25); }
 
-/* ── 왼쪽 사이드바 접기 (데스크톱 850px 이상) ── */
+/* ── 왼쪽 사이드바 접기 (데스크톱 850px 이상): 사이드바 안 오른쪽 위 버튼 / 접히면 왼쪽 위 펼치기 버튼 ── */
 .sb-toggle { display: none; }
 @media (min-width: 850px) {
-  #topbar .sb-toggle {
-    display: inline-flex; align-items: center; justify-content: center; flex: none;
-    width: 2rem; height: 2rem; margin-right: .5rem; border-radius: 8px; cursor: pointer;
-    border: 1px solid transparent; background: transparent; color: var(--text-muted-color);
+  .sb-toggle {
+    align-items: center; justify-content: center; width: 2.1rem; height: 2.1rem; border-radius: 8px; cursor: pointer;
+    border: 0; background: transparent; color: var(--text-muted-color); z-index: 1101;
   }
-  #topbar .sb-toggle:hover { border-color: var(--cl-line); color: var(--cl-accent); }
+  .sb-toggle:hover { color: var(--text-color); background: color-mix(in srgb, var(--text-color) 9%, transparent); }
+  #sidebar .sb-fold { display: inline-flex; position: absolute; top: .75rem; right: .75rem; }
+  .sb-unfold { position: fixed; top: calc(.6rem + env(safe-area-inset-top, 0px)); left: calc(.75rem + env(safe-area-inset-left, 0px)); }
+  html.sb-collapsed .sb-unfold { display: inline-flex; }
   html.sb-collapsed #sidebar { transform: translateX(-100%); }
   html.sb-collapsed #main-wrapper { margin-left: 0; }
+  html.sb-collapsed #topbar-wrapper .container, html.sb-collapsed #topbar { padding-left: 2.6rem; }
   #sidebar, #main-wrapper { transition: transform .3s ease, margin-left .3s ease; }
 }
 
@@ -201,20 +204,23 @@ html .btn-close { --bs-btn-close-focus-shadow: 0 0 0 .25rem rgba(var(--cl-ring),
 .rec-close { width: 1.8rem; height: 1.8rem; border-radius: 999px; border: 0; background: transparent; color: var(--text-muted-color); cursor: pointer; font-size: 1.1rem; }
 .rec-close:hover { background: rgba(var(--cl-ring), .12); }
 .rec-card a { text-decoration: none; color: inherit; }
-.rec-primary { display: flex; flex-direction: column; gap: .15rem; padding: .65rem .8rem; border-radius: 12px;
-  background: var(--cl-fill); color: var(--cl-on-fill) !important; }
-.rec-primary .rec-reason { font-size: .72rem; opacity: .85; letter-spacing: .03em; }
-.rec-primary .rec-title { font-weight: 600; }
-.rec-primary:hover { background: var(--cl-fill-2); }
-.rec-more { list-style: none; margin: .55rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .2rem; }
-.rec-more a { display: flex; flex-direction: column; padding: .4rem .5rem; border-radius: 10px; }
-.rec-more a:hover { background: rgba(var(--cl-ring), .1); }
-.rec-more .rec-title { color: var(--cl-accent); }
-.rec-more .rec-reason { font-size: .74rem; color: var(--text-muted-color); }
-:root[data-bs-theme=dark] .rec-primary { background: rgba(var(--cl-ring), .14); color: #ffffff !important; box-shadow: inset 3px 0 0 var(--cl-accent-2); }
-:root[data-bs-theme=dark] .rec-primary:hover { background: rgba(var(--cl-ring), .22); }
-:root[data-bs-theme=dark] .post-navigation.post-nav3 .btn:hover:not(.disabled) { background: rgba(var(--cl-ring), .16); color: var(--cl-accent); }
-.rec-list { display: inline-block; margin-top: .45rem; padding: .2rem .5rem; font-size: .82rem; color: var(--text-muted-color) !important; text-decoration: underline !important; text-underline-offset: 3px; }
+/* 추천 항목: 모두 같은 "글 카드" 모양 + 꼬리표. 선택(호버)은 투명도 대신 한 단계 밝은/어두운 면 */
+.rec-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
+.rec-item { display: flex; flex-direction: column; gap: .2rem; padding: .55rem .7rem; border-radius: 10px;
+  background: var(--rec-l1); transition: background .15s ease; }
+.rec-item:hover, .rec-item:focus-visible { background: var(--rec-l2); }
+.rec-label { align-self: flex-start; font-size: .7rem; font-weight: 600; letter-spacing: .02em; padding: .05rem .45rem;
+  border-radius: 999px; background: var(--rec-chip); color: var(--text-muted-color); }
+.rec-item.is-primary .rec-label { background: var(--rec-chip-strong); color: var(--rec-chip-strong-fg); }
+.rec-item .rec-title { font-weight: 600; color: var(--text-color); line-height: 1.4; }
+:root, :root[data-bs-theme=light], :root:not([data-bs-theme]) {
+  --rec-l1: #f4f4f5; --rec-l2: #e7e7ea; --rec-chip: #e2e2e6; --rec-chip-strong: #5a4330; --rec-chip-strong-fg: #ffffff;
+}
+html:root[data-bs-theme=dark] {
+  --rec-l1: #252528; --rec-l2: #303034; --rec-chip: #36363b; --rec-chip-strong: #ff9a3d; --rec-chip-strong-fg: #121212;
+}
+html:root[data-bs-theme=dark] .rec-card { background: #1c1c1e; border-color: #2c2c30; box-shadow: none; }
+.rec-list { display: inline-block; margin-top: .5rem; padding: .2rem .5rem; font-size: .82rem; color: var(--text-muted-color) !important; text-decoration: underline !important; text-underline-offset: 3px; }
 .rec-card a:focus-visible, .rec-close:focus-visible { outline: 3px solid var(--cl-accent); outline-offset: 2px; }
 @media (max-width: 767.98px) { .rec-card { left: 16px; right: 88px; width: auto; } }
 @media (prefers-reduced-motion: reduce) {
