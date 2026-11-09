@@ -53,8 +53,8 @@
     const msg = body && typeof body.error === "string" && body.error.length < 200 ? body.error : ERROR_TEXT;
     return { kind: status === 429 || status === 503 ? "limited" : "error", text: msg, answerId: null };
   }
-  const NONE_TEXT = "블로그에서 답을 찾지 못했어요. 다른 표현으로 물어보거나 검색을 써 보세요.";
-  const ERROR_TEXT = "지금은 답변할 수 없어요. 잠시 후 다시 시도해 주세요.";
+  const NONE_TEXT = "블로그에서 답을 찾지 못했어요.";
+  const ERROR_TEXT = "지금은 답할 수 없어요. 잠시 후 다시 시도해 주세요.";
 
   /** SSE 조각 해석: 완성된 이벤트들과 남은 조각. 형식이 깨진 이벤트는 버린다. */
   function parseSSE(buffer) {
@@ -144,7 +144,7 @@
     btnNew.innerHTML = ICON.reset;
     const btnClose = el("button", { type: "button", class: "ask-iconbtn", "aria-label": "접기", title: "접기" });
     const titles = el("div", { class: "ask-titles" });
-    titles.append(el("h2", { id: "ask-title" }, "블로그 AI"), el("p", null, "OpenAI 모델이 이 블로그 글만 근거로 답해요"));
+    titles.append(el("h2", { id: "ask-title" }, "블로그 AI"));
     head.append(titles, btnNew, btnClose);
 
     const log = el("div", { class: "ask-log", role: "log", "aria-live": "polite", "aria-relevant": "additions" });
@@ -158,24 +158,19 @@
       exBox.append(b);
     }
     const card = el("div", { class: "ask-card" });
-    const notice = el("p", { class: "ask-notice" });
-    const noticeText = el("span");
-    const change = el("a", { href: cfg.privacyUrl || "/privacy/" }, "설정");
-    notice.append(noticeText, " · ", change);
     const form = el("form", { class: "ask-form" });
     const box = el("div", { class: "ask-box" });
-    const input = el("textarea", { id: "ask-input", rows: "1", placeholder: "블로그 글에 대해 물어보세요",
+    const input = el("textarea", { id: "ask-input", rows: "1", placeholder: "질문 입력 (개인정보 제외)",
                                    "aria-label": "질문", "aria-describedby": "ask-count" });
     const send = el("button", { type: "submit", class: "ask-send", "aria-label": "보내기", disabled: "" });
     send.innerHTML = ICON.send;
     box.append(input, send);
     const row2 = el("div", { class: "ask-row2" });
-    const hint = el("span", { class: "ask-count" }, "Enter 보내기 · Shift+Enter 줄바꿈");
     const count = el("span", { id: "ask-count", class: "ask-count" }, `0 / ${MAX_CHARS}`);
-    row2.append(hint, count);
+    row2.append(count);
     const human = el("div", { class: "ask-human" });
     form.append(box, row2);
-    card.append(notice, form);
+    card.append(form);
     foot.append(exBox, card, human);
     panel.append(head, log, foot, announce);
     doc.body.append(launcher, panel);
@@ -200,14 +195,6 @@
     setMobile();
     mobileMq.addEventListener("change", setMobile);
 
-    const updateNotice = () => {
-      noticeText.textContent = readConsent(storage)
-        ? "질문 저장: 동의함(개인정보는 가린 뒤 90일) · 개인정보는 입력하지 마세요"
-        : "질문 저장 안 함 · 개인정보는 입력하지 마세요";
-    };
-    change.addEventListener("click", (e) => {
-      if (typeof root.openConsentSettings === "function") { e.preventDefault(); root.openConsentSettings(); }
-    });
 
     const ensureHuman = async () => {
       if (widgetId !== null) return;
@@ -216,7 +203,7 @@
         widgetId = ts.render(human, { sitekey: cfg.sitekey, appearance: "interaction-only", size: "flexible",
                                       language: "ko", "refresh-expired": "auto", action: "ask" });
       } catch {
-        human.textContent = "사람 확인 도구를 불러오지 못했어요. 광고·추적 차단 기능이 막고 있을 수 있어요.";
+        human.textContent = "사람 확인을 불러오지 못했어요(차단 확장 확인).";
       }
     };
     const waitToken = async (ms) => {
@@ -234,7 +221,7 @@
       const w = el("div", { class: "ask-welcome" });
       const icon = el("div");
       icon.innerHTML = ICON.sparkGrad;
-      w.append(icon, el("h3", null, "블로그 글에서 찾아 드릴게요"), el("p", null, "답과 함께 근거가 된 단락 링크를 드려요"));
+      w.append(icon, el("h3", null, "블로그 글에서 찾아 답해요"));
       log.append(w);
       exBox.hidden = false;
     };
@@ -244,7 +231,7 @@
       html.classList.add("ask-open");
       [launcher, topBtn].forEach((b) => b && b.setAttribute("aria-expanded", "true"));
       session.set("ask-open", "1");
-      updateNotice(); ensureHuman();
+      ensureHuman();
       if (!mobileMq.matches || via !== "restore") setTimeout(() => input.focus(), 50);
       if (via !== "restore") track("ai_panel_open", { via });
     };
@@ -385,7 +372,7 @@
         }
       } catch (e) {
         state = e && e.message === "human"
-          ? { kind: "error", text: "사람 확인을 마치지 못했어요. 아래 확인 상자가 보이면 눌러 주세요.", answerId: null }
+          ? { kind: "error", text: "사람 확인 후 다시 보내 주세요.", answerId: null }
           : { kind: "error", text: ERROR_TEXT, answerId: null };
       } finally {
         if (root.turnstile && widgetId !== null) root.turnstile.reset(widgetId);   // 토큰은 1회용

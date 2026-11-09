@@ -92,6 +92,29 @@
     topbar.prepend(b);
   }
 
+  /* ── 다크/라이트: 아이콘 하나, 누르면 바로 전환. Chirpy 기본 3단 메뉴(라이트/다크/시스템)는 CSS로 숨김 ── */
+  function themeToggle() {
+    const b = iconBtn("fa-moon", "다크 모드로", { class: "theme-btn" });
+    const isDark = () => html.getAttribute("data-bs-theme") === "dark"
+      || (!html.getAttribute("data-bs-theme") && root.matchMedia("(prefers-color-scheme: dark)").matches);
+    const sync = () => {
+      const d = isDark();
+      b.innerHTML = `<i class="fa-regular ${d ? "fa-sun" : "fa-moon"}" aria-hidden="true"></i>`;
+      b.setAttribute("aria-label", d ? "라이트 모드로" : "다크 모드로");
+      b.title = b.getAttribute("aria-label");
+    };
+    b.addEventListener("click", () => {
+      const next = isDark() ? "light" : "dark";
+      if (root.Theme && typeof root.Theme.update === "function") root.Theme.update(next);
+      else { html.setAttribute("data-bs-theme", next); store.set("theme", next); }
+      sync();
+      track("theme_toggle", { mode: next });
+    });
+    new MutationObserver(sync).observe(html, { attributes: true, attributeFilter: ["data-bs-theme"] });
+    sync();
+    return b;
+  }
+
   function init() {
     sidebarToggle();
     const anchor = doc.getElementById("search-trigger");
@@ -244,7 +267,7 @@
       root.addEventListener("pagehide", () => synth.cancel());
     }
 
-    tools.append(status);
+    tools.append(themeToggle(), status);
     anchor.before(tools);
 
     /* 이전 선택 언어 자동 번역(모델이 이미 있을 때만), 처음이면 브라우저 언어 보고 한 번만 제안 */

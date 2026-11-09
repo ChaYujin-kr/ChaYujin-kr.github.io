@@ -144,7 +144,7 @@ html.ask-open .ask-panel { transform: none; visibility: visible; transition: tra
 }
 .ask-send svg { width: 18px; height: 18px; fill: currentColor; }
 .ask-send:disabled { opacity: .4; cursor: not-allowed; }
-.ask-row2 { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+.ask-row2 { display: flex; justify-content: flex-end; align-items: center; gap: .5rem; }
 .ask-count { font-size: .7rem; color: var(--ask-muted); font-variant-numeric: tabular-nums; }
 .ask-count.over { color: #b3261e; font-weight: 700; }
 .ask-human:empty { display: none; }

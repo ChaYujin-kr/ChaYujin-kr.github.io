@@ -41,7 +41,7 @@ test("interpret: 상태 코드별 화면 문구, 서버 문구가 이상하면 �
   assert.equal(core.interpret(200, { can_answer: false }).kind, "none");
   assert.equal(core.interpret(429, { error: "질문이 너무 잦아요." }).kind, "limited");
   assert.equal(core.interpret(503, { error: "오늘은 쉬어요." }).text, "오늘은 쉬어요.");
-  assert.match(core.interpret(500, { error: "x".repeat(500) }).text, /지금은 답변할 수 없어요/);
+  assert.match(core.interpret(500, { error: "x".repeat(500) }).text, /지금은 답할 수 없어요/);
   assert.equal(core.interpret(0, null).kind, "error");
   assert.equal(core.interpret(200, { can_answer: true, answer: "답", answer_id: 5 }).answerId, null);
 });
