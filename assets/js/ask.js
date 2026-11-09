@@ -76,6 +76,27 @@
     return blocks.map((b) => (b.type === "p" ? { type: "p", inlines: parseInline(b.lines.join("\n")) } : b));
   }
 
+  /** 입력창 목록 편집. 줄 맨 앞 "- " 또는 "* " → "• ". 커서 위치를 함께 돌려준다. */
+  function autoBullet(value, caret) {
+    const start = value.lastIndexOf("\n", caret - 1) + 1;
+    const head = value.slice(start, caret);
+    const m = head.match(/^(\s*)[-*] $/);
+    if (!m) return null;
+    const v = value.slice(0, start) + m[1] + "• " + value.slice(caret);
+    return { value: v, caret: start + m[1].length + 2 };
+  }
+  /** Shift+Enter: 목록 줄이면 다음 줄에 같은 표시(번호는 +1), 내용 없는 목록 줄이면 표시를 지우고 목록을 끝낸다. */
+  function continueList(value, caret) {
+    const start = value.lastIndexOf("\n", caret - 1) + 1;
+    const line = value.slice(start, caret);
+    const m = line.match(/^(\s*)(•|(\d{1,3})([.)])) (.*)$/);
+    if (!m) return null;
+    if (!m[5].trim()) return { value: value.slice(0, start) + value.slice(caret), caret: start };
+    const mark = m[3] ? `${Number(m[3]) + 1}${m[4]}` : "•";
+    const ins = `\n${m[1]}${mark} `;
+    return { value: value.slice(0, caret) + ins + value.slice(caret), caret: caret + ins.length };
+  }
+
   /** 이전 대화 최근 3턴(질문 300자, 답 600자). 답하지 못한 턴은 답을 비운다. 서버가 다시 자르고 가린다. */
   function recentTurns(history) {
     if (!Array.isArray(history)) return [];
@@ -125,7 +146,7 @@
     return { events, rest };
   }
 
-  const core = { MAX_CHARS, cpLen, safeLinks, readConsent, buildRequest, recentTurns, parseRich, lenBucket, formatSeconds, interpret, parseSSE };
+  const core = { MAX_CHARS, cpLen, safeLinks, readConsent, buildRequest, recentTurns, parseRich, autoBullet, continueList, lenBucket, formatSeconds, interpret, parseSSE };
   if (typeof module !== "undefined" && module.exports) { module.exports = core; return; }
   root.BlogAskCore = core;
 
@@ -314,13 +335,19 @@
       input.style.height = "auto";
       input.style.height = Math.min(input.scrollHeight, input.value.includes("```") ? 240 : 136) + "px";
     };
-    input.addEventListener("input", onInput);
     const inFence = () => (input.value.slice(0, input.selectionStart).match(/```/g) || []).length % 2 === 1;
+    const apply = (r) => { if (!r) return false; input.value = r.value; input.setSelectionRange(r.caret, r.caret); onInput(); return true; };
+    input.addEventListener("input", (e) => {
+      if (e.data === " " && !inFence()) apply(autoBullet(input.value, input.selectionStart));
+      onInput();
+    });
     input.addEventListener("keydown", (e) => {
       if (e.key === "Tab" && !e.shiftKey && inFence()) {      // 코드 블록 안: Tab = 공백 2칸
         e.preventDefault();
         input.setRangeText("  ", input.selectionStart, input.selectionEnd, "end"); onInput(); return;
       }
+      if (e.key === "Enter" && e.shiftKey && !e.isComposing && !inFence() &&
+          apply(continueList(input.value, input.selectionStart))) { e.preventDefault(); return; }
       if (e.key === "Enter" && !e.shiftKey && !e.isComposing && !inFence()) { e.preventDefault(); submit("enter"); }
     });
     form.addEventListener("submit", (e) => { e.preventDefault(); submit("button"); });
@@ -419,7 +446,7 @@
       busy = true;
       if (log.querySelector(".ask-welcome")) log.replaceChildren();
       exBox.hidden = true;
-      log.append(el("div", { class: "ask-msg user" }, q));
+      { const u = el("div", { class: "ask-msg user" }); renderRich(u, q); log.append(u); }
       input.value = ""; onInput();
       const msg = botMessage();
       scrollDown();
@@ -479,7 +506,7 @@
       log.replaceChildren();
       exBox.hidden = true;
       for (const h of history) {
-        log.append(el("div", { class: "ask-msg user" }, String(h.q || "")));
+        { const u = el("div", { class: "ask-msg user" }); renderRich(u, String(h.q || "")); log.append(u); }
         const kind = ["answered", "none", "error"].includes(h.kind) ? h.kind : "error";
         botMessage().finish({ kind, text: String(h.text || ""), answerId: null },
                             safeLinks(h.links, cfg.siteUrl), Number(h.ms) || 0);

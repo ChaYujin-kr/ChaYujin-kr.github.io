@@ -85,3 +85,13 @@ test("답 서식: 문단·목록·굵게·코드만, 링크 문법은 글자 그
   assert.deepEqual(b[4].inlines, [{ t: "text", v: "[a](http://e)" }]);
   assert.deepEqual(core.parseRich(""), []);
 });
+
+test("입력 목록: '- ' → '• ', Shift+Enter로 이어 쓰기(번호 +1), 빈 항목에서 목록 끝", () => {
+  assert.deepEqual(core.autoBullet("- ", 2), { value: "• ", caret: 2 });
+  assert.deepEqual(core.autoBullet("a\n  * ", 6), { value: "a\n  • ", caret: 6 });
+  assert.equal(core.autoBullet("a - ", 4), null);               // 줄 중간의 - 는 그대로
+  assert.deepEqual(core.continueList("• 하나", 4), { value: "• 하나\n• ", caret: 7 });
+  assert.deepEqual(core.continueList("2. 둘", 4), { value: "2. 둘\n3. ", caret: 8 });
+  assert.deepEqual(core.continueList("x\n• ", 4), { value: "x\n", caret: 2 });
+  assert.equal(core.continueList("그냥 문장", 5), null);
+});

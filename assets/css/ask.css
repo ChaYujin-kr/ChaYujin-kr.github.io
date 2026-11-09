@@ -226,3 +226,9 @@ html.ask-open .ask-panel { transform: none; visibility: visible; transition: tra
   text-decoration: underline; text-underline-offset: 2px; }
 .ask-copy:hover { color: var(--ask-fg); }
 #ask-input { tab-size: 2; }
+.ask-msg.user p { margin: 0 0 .4em; white-space: pre-wrap; }
+.ask-msg.user > :last-child { margin-bottom: 0; }
+.ask-msg.user ul, .ask-msg.user ol { margin: 0 0 .4em; padding-left: 1.2em; }
+.ask-msg.user code { font-size: .86em; padding: .05em .3em; border-radius: 5px; background: rgba(255, 255, 255, .14); }
+.ask-msg.user pre { margin: 0 0 .4em; padding: .5em .65em; border-radius: 8px; background: rgba(255, 255, 255, .1); overflow-x: auto; white-space: pre; }
+.ask-msg.user { white-space: normal; }
