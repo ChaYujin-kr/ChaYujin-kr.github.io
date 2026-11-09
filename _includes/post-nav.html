@@ -1,0 +1,42 @@
+{%- comment -%}
+  Chirpy v7.6.0 post-nav.html을 바꿈: [이전 글] [목록으로] [다음 글].
+  시리즈 글이면 이전·다음을 같은 시리즈 안에서(날짜순) 고르고, 목록은 시리즈 페이지로 보낸다.
+{%- endcomment -%}
+{%- assign prev_post = page.previous -%}
+{%- assign next_post = page.next -%}
+{%- assign list_url = '/' | relative_url -%}
+{%- assign list_label = '전체 글' -%}
+{%- if page.series -%}
+  {%- assign series_posts = site.posts | where: 'series', page.series | sort: 'date' -%}
+  {%- assign prev_post = nil -%}
+  {%- assign next_post = nil -%}
+  {%- for p in series_posts -%}
+    {%- if p.url == page.url -%}
+      {%- assign i_prev = forloop.index0 | minus: 1 -%}
+      {%- assign i_next = forloop.index0 | plus: 1 -%}
+      {%- if i_prev >= 0 -%}{%- assign prev_post = series_posts[i_prev] -%}{%- endif -%}
+      {%- assign next_post = series_posts[i_next] -%}
+    {%- endif -%}
+  {%- endfor -%}
+  {%- assign list_url = '/series/' | relative_url -%}
+  {%- assign list_label = page.series_title | default: '시리즈 목록' -%}
+{%- endif -%}
+<nav class="post-navigation post-nav3" aria-label="글 이동">
+  {%- if prev_post.url %}
+  <a href="{{ prev_post.url | relative_url }}" class="btn btn-outline-primary nav-prev">
+    <span class="nav-label">이전 글</span><span class="nav-title">{{ prev_post.title }}</span>
+  </a>
+  {%- else %}
+  <span class="btn btn-outline-primary disabled nav-prev" aria-disabled="true"><span class="nav-label">이전 글</span><span class="nav-title">첫 글이에요</span></span>
+  {%- endif %}
+  <a href="{{ list_url }}" class="btn btn-outline-primary nav-list">
+    <i class="fas fa-list-ul" aria-hidden="true"></i><span class="nav-label">목록으로</span><span class="nav-title">{{ list_label }}</span>
+  </a>
+  {%- if next_post.url %}
+  <a href="{{ next_post.url | relative_url }}" class="btn btn-outline-primary nav-next">
+    <span class="nav-label">다음 글</span><span class="nav-title">{{ next_post.title }}</span>
+  </a>
+  {%- else %}
+  <span class="btn btn-outline-primary disabled nav-next" aria-disabled="true"><span class="nav-label">다음 글</span><span class="nav-title">마지막 글이에요</span></span>
+  {%- endif %}
+</nav>

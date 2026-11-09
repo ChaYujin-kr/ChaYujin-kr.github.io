@@ -1,0 +1,7 @@
+---
+layout: null
+sitemap: false
+---
+{%- comment -%} 다 읽은 뒤 추천(assets/js/recommend.js)이 쓰는 글 목록. 공개 글 정보만. {%- endcomment -%}
+[{% for p in site.posts %}{"url": {{ p.url | relative_url | jsonify }}, "title": {{ p.title | jsonify }}, "series": {{ p.series | default: "" | jsonify }}, "tags": {{ p.tags | jsonify }}, "date": {{ p.date | date: "%Y-%m-%dT%H:%M" | jsonify }}}{% unless forloop.last %},
+{% endunless %}{% endfor %}]

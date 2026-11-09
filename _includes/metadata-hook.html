@@ -2,7 +2,8 @@
 Chirpy head 확장 지점
 - 시리즈 목차 박스 스타일
 - 글 읽기 진행 바
-- 상단 바 도구 (모든 페이지): 언어 선택 + 음성으로 듣기
+- 상단 바 도구 (모든 페이지): 사이드바 접기, 번역(EN 메뉴), 듣기(메뉴) → assets/js/site-tools.js
+- 다 읽으면 추천 카드 (글 페이지) → assets/js/recommend.js, 글 목록 assets/data/posts.json
   · 번역: 크롬 내장 Translator API, 본문 글자만 번역하고 코드·날짜는 그대로
   · 음성: Web Speech API, 지원하지 않으면 버튼을 만들지 않음
 - AI 질문 창: assets/js/ask.js, 설정은 _data/assistant.yml (배포 빌드에서는 enabled일 때만)
@@ -29,6 +30,8 @@ Chirpy head 확장 지점
     const c = JSON.parse(localStorage.getItem("consent-v1") || "null");
     if (c && c.analytics) gtag("consent", "update", { analytics_storage: "granted" });
   } catch {}
+  /* 사이드바 접힘 상태를 화면을 그리기 전에 붙여 깜빡임을 막음 (버튼은 assets/js/site-tools.js) */
+  try { if (localStorage.getItem("sidebar-collapsed") === "1") document.documentElement.classList.add("sb-collapsed"); } catch {}
 </script>
 {%- if jekyll.environment == "production" %}
 <!-- Google Tag Manager: GA4 태그는 GTM 컨테이너 안에서 설정 (_gtm/README.md) -->
@@ -48,16 +51,8 @@ Chirpy head 확장 지점
   .series-nav li.current { font-weight: 700; }
   .series-nav li.current::marker { color: var(--link-color, #0b5cad); }
 
-  .site-tools { display: flex; align-items: center; gap: .35rem; margin-left: auto; margin-right: .5rem; }
-  .site-tools select, .site-tools button { font: inherit; font-size: .8rem; line-height: 1.2; height: 2rem; padding: 0 .6rem; border-radius: 999px; cursor: pointer;
-    border: 1px solid var(--btn-border-color, #8c959f); background: var(--main-bg, #fff); color: var(--text-color, #1f2328); }
-  .site-tools select { padding-right: 1.6rem; }
-  .site-tools button:hover, .site-tools select:hover { border-color: var(--link-color, #0b5cad); }
-  .site-tools button[aria-pressed="true"] { background: var(--link-color, #0b5cad); border-color: var(--link-color, #0b5cad); color: var(--main-bg, #fff); }
-  .site-tools .tool-label { margin-left: .3rem; }
-  .site-tools .tool-status { font-size: .75rem; color: var(--text-muted-color, #57606a); white-space: nowrap; }
-  @media (max-width: 575.98px) { .site-tools .tool-label, .site-tools .tool-status { display: none; } .site-tools { gap: .25rem; } }
-  .series-nav summary:focus-visible, .site-tools button:focus-visible, .site-tools select:focus-visible { outline: 3px solid var(--link-color, #0b5cad); outline-offset: 2px; }
+  /* 상단 바 도구·사이드바 접기·추천 카드 스타일은 assets/css/custom.css */
+  .series-nav summary:focus-visible { outline: 3px solid var(--link-color); outline-offset: 2px; }
 
   /* 읽기 진행 바: 카키 → 월넛 브라운 그라데이션 (장식용, 보조기기에선 숨김) */
   #reading-progress { position: fixed; top: 0; left: 0; height: 3px; width: 0; z-index: 1100;
@@ -104,179 +99,29 @@ document.addEventListener("DOMContentLoaded", () => {
     const total = article.offsetHeight - window.innerHeight;
     const ratio = total > 0 ? (window.scrollY - top) / total : 1;
     bar.style.width = Math.min(100, Math.max(0, ratio * 100)) + "%";
-    if (ratio >= 0.9 && !bar.dataset.done) { bar.dataset.done = "1"; blogTrack("read_complete"); }
+    if (ratio >= 0.9 && !bar.dataset.done) {
+      bar.dataset.done = "1"; blogTrack("read_complete");
+      window.dispatchEvent(new Event("blog:read-complete"));   /* 추천 카드(assets/js/recommend.js) */
+    }
   };
   window.addEventListener("scroll", update, { passive: true });
   window.addEventListener("resize", update);
   update();
 });
 </script>
+<style>#panel-wrapper .access { display: none; }</style>{%- comment -%} 글 화면에선 목차만 남김 {%- endcomment -%}
+{%- if page.series -%}
+  {%- assign rec_list_url = '/series/' | relative_url -%}{%- assign rec_list_label = page.series_title | default: '시리즈 목록' | prepend: '목록으로 · ' -%}
+{%- else -%}
+  {%- assign rec_list_url = '/' | relative_url -%}{%- assign rec_list_label = '목록으로' -%}
 {%- endif %}
 <script>
-/* 상단 바 도구: 언어 선택 + 음성으로 듣기 (모든 페이지) */
-document.addEventListener("DOMContentLoaded", () => {
-  const anchor = document.getElementById("search-trigger");
-  const root = document.querySelector("main");
-  if (!anchor || !root) return;
-
-  /* 코드는 번역하지 않음: 브라우저 자체 페이지 번역에도 적용되는 표준 속성 */
-  document.querySelectorAll("pre, code, kbd, samp, time").forEach(el => el.setAttribute("translate", "no"));
-
-  const SKIP = "pre, code, kbd, samp, time, script, style, [translate='no'], .site-tools";
-  const LANGS = { ko: "한국어", en: "English", ja: "日本語", zh: "中文" };
-  const SPEECH_LANG = { ko: "ko-KR", en: "en-US", ja: "ja-JP", zh: "zh-CN" };
-  const store = { get: k => { try { return localStorage.getItem(k); } catch { return null; } },
-                  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
-  let currentLang = "ko";
-
-  const tools = document.createElement("div");
-  tools.className = "site-tools";
-  tools.setAttribute("role", "group");
-  tools.setAttribute("aria-label", "번역과 음성 듣기");
-  const status = document.createElement("span");
-  status.className = "tool-status";
-  status.setAttribute("aria-live", "polite");
-  const say = msg => { status.textContent = msg || ""; };
-
-  /* ── 번역 ── */
-  const select = document.createElement("select");
-  select.id = "site-lang";
-  select.setAttribute("aria-label", "페이지 언어");
-  Object.entries(LANGS).forEach(([code, name]) => {
-    const o = document.createElement("option");
-    o.value = code; o.textContent = code === "ko" ? "한국어 (원문)" : name; o.lang = code;
-    select.appendChild(o);
-  });
-  tools.appendChild(select);
-
-  const originals = new Map();   /* 텍스트 노드 → 원문 */
-  const textNodes = () => {
-    const out = [];
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-      acceptNode: n => (!n.nodeValue.trim() || n.parentElement.closest(SKIP)) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
-    });
-    while (walker.nextNode()) out.push(walker.currentNode);
-    return out;
-  };
-  const restore = () => {
-    originals.forEach((text, node) => { node.nodeValue = text; });
-    document.documentElement.lang = "ko-KR";
-    currentLang = "ko"; say("");
-  };
-  const translateTo = async (lang, auto = false) => {
-    restore();
-    if (lang === "ko") return;
-    if (!("Translator" in self)) {
-      say("이 브라우저는 내장 번역을 지원하지 않아요 (최신 크롬에서 사용 가능)");
-      blogTrack("translate_select", { language: lang, result: "unsupported" });
-      select.value = "ko"; return;
-    }
-    try {
-      const opts = { sourceLanguage: "ko", targetLanguage: lang };
-      const availability = await Translator.availability(opts);
-      if (availability === "unavailable") { say("이 언어는 지원하지 않아요"); select.value = "ko"; return; }
-      if (auto && availability !== "available") { select.value = "ko"; return; }   /* 자동 번역은 모델이 이미 있을 때만 */
-      const translator = await Translator.create({ ...opts, monitor(m) {
-        m.addEventListener("downloadprogress", e => say(`번역 모델 내려받는 중 ${Math.round(e.loaded * 100)}%`));
-      } });
-      const nodes = textNodes();
-      for (let i = 0; i < nodes.length; i++) {
-        const node = nodes[i], text = node.nodeValue;
-        if (!originals.has(node)) originals.set(node, text);
-        const lead = text.match(/^\s*/)[0], trail = text.match(/\s*$/)[0];
-        node.nodeValue = lead + await translator.translate(text.trim()) + trail;
-        if (i % 20 === 0) say(`번역 중 ${Math.round((i / nodes.length) * 100)}%`);
-      }
-      document.documentElement.lang = lang;
-      currentLang = lang; say("");
-      blogTrack("translate_select", { language: lang, result: auto ? "auto" : "success" });
-    } catch (err) {
-      restore(); select.value = "ko";
-      say("번역하지 못했어요");
-      blogTrack("translate_select", { language: lang, result: "failed" });
-    }
-  };
-  select.addEventListener("change", () => { store.set("site-lang", select.value); translateTo(select.value); });
-
-  /* ── 음성으로 듣기 ── */
-  const synth = window.speechSynthesis;
-  if (synth && "SpeechSynthesisUtterance" in window) {
-    const summary = root.querySelector("article .content blockquote.prompt-tip");
-    const RATES = [1, 1.25, 0.85];
-    let rateIdx = 0, queue = [], mode = null;
-    const mk = (icon, label, aria) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.innerHTML = `<i class="fas ${icon}" aria-hidden="true"></i><span class="tool-label">${label}</span>`;
-      b.setAttribute("aria-label", aria || label);
-      tools.appendChild(b); return b;
-    };
-    const btnSummary = summary ? mk("fa-headphones", "요약 듣기") : null;
-    const btnFull = mk("fa-volume-high", "전체 듣기");
-    const btnRate = mk("fa-gauge", "1x", "읽기 속도, 현재 1배");
-    [btnSummary, btnFull].forEach(b => b && b.setAttribute("aria-pressed", "false"));
-
-    const pickVoice = () => synth.getVoices().find(v => v.lang && v.lang.toLowerCase().startsWith(currentLang));
-    const blocks = () => {
-      const parts = [];
-      root.querySelectorAll("h1, h2, h3, p, li, blockquote").forEach(el => {
-        if (el.closest("pre, table, .series-nav, figure, .post-meta, nav")) return;
-        if (el.tagName === "LI" && el.closest("blockquote")) return;
-        if (el.tagName === "P" && el.closest("li, blockquote")) return;
-        const t = el.innerText.trim(); if (t) parts.push(t);
-      });
-      return parts.join("\n");
-    };
-    /* 긴 문장은 일부 브라우저에서 끊겨서 문장 단위로 나눠 차례로 읽음 */
-    const chunks = text => text.replace(/\s+/g, " ").split(/(?<=[.!?。])\s*/).flatMap(x => {
-      const out = []; for (let i = 0; i < x.length; i += 180) out.push(x.slice(i, i + 180)); return out;
-    }).filter(t => t.trim());
-    const reset = msg => {
-      mode = null; queue = [];
-      [btnSummary, btnFull].forEach(b => b && b.setAttribute("aria-pressed", "false"));
-      say(msg);
-    };
-    const next = () => {
-      if (!queue.length) return reset("다 읽었어요");
-      const u = new SpeechSynthesisUtterance(queue.shift());
-      u.lang = SPEECH_LANG[currentLang]; u.rate = RATES[rateIdx];
-      const v = pickVoice(); if (v) u.voice = v;
-      u.onend = () => { if (mode) next(); };
-      u.onerror = e => { if (e.error !== "canceled" && e.error !== "interrupted") reset("음성을 재생하지 못했어요"); };
-      synth.speak(u);
-    };
-    const play = (which, btn) => {
-      const wasPlaying = mode === which;
-      synth.cancel(); reset("");
-      if (wasPlaying) return say("멈췄어요");
-      mode = which;
-      const title = (root.querySelector("h1") || {}).innerText || document.title;
-      queue = chunks(which === "summary" ? `${title}. ${summary.innerText}` : blocks());
-      btn.setAttribute("aria-pressed", "true");
-      say(which === "summary" ? "요약을 읽는 중" : "읽는 중");
-      blogTrack("tts_play", { mode: which, language: currentLang });
-      next();
-    };
-    if (btnSummary) btnSummary.addEventListener("click", () => play("summary", btnSummary));
-    btnFull.addEventListener("click", () => play("full", btnFull));
-    btnRate.addEventListener("click", () => {
-      rateIdx = (rateIdx + 1) % RATES.length;
-      btnRate.querySelector(".tool-label").textContent = `${RATES[rateIdx]}x`;
-      btnRate.setAttribute("aria-label", `읽기 속도, 현재 ${RATES[rateIdx]}배`);
-      blogTrack("tts_rate_change", { rate: RATES[rateIdx] });
-      if (mode) say("다음 문장부터 적용돼요");
-    });
-    window.addEventListener("pagehide", () => synth.cancel());
-  }
-
-  tools.appendChild(status);
-  anchor.before(tools);
-
-  /* 이전에 고른 언어가 있으면 자동 번역 (모델이 이미 내려받아져 있을 때만) */
-  const saved = store.get("site-lang");
-  if (saved && saved !== "ko" && LANGS[saved]) { select.value = saved; translateTo(saved, true); }
-});
+  window.BLOG_REC = { index: {{ '/assets/data/posts.json' | relative_url | jsonify }},
+                      listUrl: {{ rec_list_url | jsonify }}, listLabel: {{ rec_list_label | jsonify }} };
 </script>
+<script src="{{ '/assets/js/recommend.js' | relative_url }}" defer></script>
+{%- endif %}
+<script src="{{ '/assets/js/site-tools.js' | relative_url }}" defer></script>
 <script>
 /* 사용자 행동 이벤트 → dataLayer (GTM에서 GA4로 전달) */
 document.addEventListener("DOMContentLoaded", () => {
