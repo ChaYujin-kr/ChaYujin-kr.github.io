@@ -36,3 +36,43 @@ html h1, html h2, html h3 { letter-spacing: -0.015em; }
 :root[data-bs-theme=dark] .highlight .gi { color: #7ee787; background-color: #04260f; }
 :root[data-bs-theme=dark] .highlight :is(.gh, .gu) { color: #79c0ff; font-weight: 700; }
 :root[data-bs-theme=dark] .highlight .err { color: #f85149; background-color: transparent; }
+
+/* ── 클래식 미니멀 강조색: 카키·월넛 브라운 (부트스트랩 기본 파랑 #0d6efd 대체) ──
+   라이트: 링크 #6b4f34(흰 배경 7.5:1), 강조 #7a6a45(5.3:1), 버튼 채움 #5a4330(흰 글자 9.2:1)
+   다크  : 링크 #d4bc94(9.3:1), 강조 #c9b48a(8.5:1), 버튼 채움 #c9b48a(어두운 글자 8.5:1)            */
+:root, :root[data-bs-theme=light], :root:not([data-bs-theme]) {
+  --cl-accent: #6b4f34; --cl-accent-2: #7a6a45; --cl-fill: #5a4330; --cl-fill-2: #4a3727; --cl-on-fill: #ffffff;
+  --cl-line: #8a7f5c; --cl-ring: 107, 79, 52;
+  --link-color: var(--cl-accent); --toc-highlight: var(--cl-accent-2); --btn-share-hover-color: var(--cl-accent);
+  --bs-link-color: var(--cl-accent); --bs-link-color-rgb: 107, 79, 52; --bs-link-hover-color: var(--cl-fill-2);
+  --bs-link-hover-color-rgb: 74, 55, 39;
+}
+:root[data-bs-theme=dark] {
+  --cl-accent: #d4bc94; --cl-accent-2: #c9b48a; --cl-fill: #c9b48a; --cl-fill-2: #d9c6a0; --cl-on-fill: #1b1b1e;
+  --cl-line: #8f8466; --cl-ring: 201, 180, 138;
+  --link-color: var(--cl-accent); --toc-highlight: var(--cl-accent-2); --btn-share-hover-color: var(--cl-accent);
+  --bs-link-color: var(--cl-accent); --bs-link-color-rgb: 212, 188, 148; --bs-link-hover-color: var(--cl-fill-2);
+  --bs-link-hover-color-rgb: 217, 198, 160;
+}
+html .btn-primary {
+  --bs-btn-bg: var(--cl-fill); --bs-btn-border-color: var(--cl-fill); --bs-btn-color: var(--cl-on-fill);
+  --bs-btn-hover-bg: var(--cl-fill-2); --bs-btn-hover-border-color: var(--cl-fill-2); --bs-btn-hover-color: var(--cl-on-fill);
+  --bs-btn-active-bg: var(--cl-fill-2); --bs-btn-active-border-color: var(--cl-fill-2); --bs-btn-active-color: var(--cl-on-fill);
+  --bs-btn-focus-shadow-rgb: var(--cl-ring);
+}
+html .btn-outline-primary {
+  --bs-btn-color: var(--cl-accent); --bs-btn-border-color: var(--cl-line);
+  --bs-btn-hover-bg: var(--cl-fill); --bs-btn-hover-border-color: var(--cl-fill); --bs-btn-hover-color: var(--cl-on-fill);
+  --bs-btn-active-bg: var(--cl-fill-2); --bs-btn-active-border-color: var(--cl-fill-2); --bs-btn-active-color: var(--cl-on-fill);
+  --bs-btn-focus-shadow-rgb: var(--cl-ring);
+}
+/* 이전·다음 글 버튼: 마우스를 올리면 월넛으로 차분하게 채움(파랑 대신), 화살표도 같은 글자색 */
+html .post-navigation .btn:hover:not(.disabled) { background-color: var(--cl-fill); border-color: var(--cl-fill); color: var(--cl-on-fill); }
+html .post-navigation .btn:hover:not(.disabled)::before { color: var(--cl-on-fill); }
+html .pagination { --bs-pagination-active-bg: var(--cl-fill); --bs-pagination-active-border-color: var(--cl-fill);
+  --bs-pagination-active-color: var(--cl-on-fill); --bs-pagination-focus-box-shadow: 0 0 0 .25rem rgba(var(--cl-ring), .3); }
+html .dropdown-menu { --bs-dropdown-link-active-bg: var(--cl-fill); --bs-dropdown-link-active-color: var(--cl-on-fill); }
+html .list-group { --bs-list-group-active-bg: var(--cl-fill); --bs-list-group-active-border-color: var(--cl-fill); --bs-list-group-active-color: var(--cl-on-fill); }
+html .form-control:focus, html .nav-link:focus-visible { box-shadow: 0 0 0 .25rem rgba(var(--cl-ring), .3); }
+html .btn-close { --bs-btn-close-focus-shadow: 0 0 0 .25rem rgba(var(--cl-ring), .3); }
+::selection { background: rgba(var(--cl-ring), .25); }

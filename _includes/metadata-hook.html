@@ -59,8 +59,11 @@ Chirpy head 확장 지점
   @media (max-width: 575.98px) { .site-tools .tool-label, .site-tools .tool-status { display: none; } .site-tools { gap: .25rem; } }
   .series-nav summary:focus-visible, .site-tools button:focus-visible, .site-tools select:focus-visible { outline: 3px solid var(--link-color, #0b5cad); outline-offset: 2px; }
 
+  /* 읽기 진행 바: 카키 → 월넛 브라운 그라데이션 (장식용, 보조기기에선 숨김) */
   #reading-progress { position: fixed; top: 0; left: 0; height: 3px; width: 0; z-index: 1100;
-    background: var(--link-color, #0b5cad); transition: width .1s linear; }
+    background: linear-gradient(90deg, #b3a97c 0%, #8a7f5c 45%, #6b4f34 100%);
+    border-radius: 0 2px 2px 0; transition: width .1s linear; }
+  [data-bs-theme=dark] #reading-progress { background: linear-gradient(90deg, #8f8466 0%, #c9b48a 55%, #e2cfa6 100%); }
 
   .consent-banner { position: fixed; z-index: 1200; left: 50%; transform: translateX(-50%);
     bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); width: min(40rem, calc(100% - 2rem));
