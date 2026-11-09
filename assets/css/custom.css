@@ -1,0 +1,38 @@
+/* 블로그 전체 덧씌우기 (Chirpy 7 테마 CSS 뒤에 불러옴)
+   - 서체: Pretendard (본문·제목). 코드 서체는 테마 기본 유지.
+   - 코드 색: 라이트는 테마가 이미 GitHub 색이라 그대로, 다크만 GitHub Dark로 바꿈.
+   Chirpy 7은 다크 모드를 :root[data-bs-theme=dark]로 표시한다. */
+:root {
+  --ask-font: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo",
+              "Noto Sans KR", "Malgun Gothic", sans-serif;
+  --bs-body-font-family: var(--ask-font);
+  --bs-font-sans-serif: var(--ask-font);
+}
+/* 테마가 Lato를 직접 지정한 곳 */
+html h1, html h2, html h3, html h4, html h5, html h6,
+html header .post-desc, html #toc-bar .label, html #search-results a, html #notification.toast .toast-body,
+html #toc-popup .header .label, html #toc-popup #toc-popup-content, html #topbar-title, html .pagination,
+html #toc-solo-trigger .label, html #archives .date.day, html .tag span {
+  font-family: var(--ask-font);
+}
+html h1, html h2, html h3 { letter-spacing: -0.015em; }
+
+/* GitHub Dark 코드 색 (Primer) */
+:root[data-bs-theme=dark] { --highlight-bg-color: #161b22; --highlight-lineno-color: #6e7681; --highlighter-rouge-color: #e6edf3; }
+:root[data-bs-theme=dark] .highlight, :root[data-bs-theme=dark] .highlight .w,
+:root[data-bs-theme=dark] .highlight .p, :root[data-bs-theme=dark] .highlight .n,
+:root[data-bs-theme=dark] .highlight .nx { color: #e6edf3; background-color: #161b22; }
+:root[data-bs-theme=dark] .highlight .p, :root[data-bs-theme=dark] .highlight .n,
+:root[data-bs-theme=dark] .highlight .nx, :root[data-bs-theme=dark] .highlight .w { background-color: transparent; }
+:root[data-bs-theme=dark] .highlight :is(.c, .ch, .cd, .cm, .cpf, .c1, .cs) { color: #8b949e; font-style: italic; }
+:root[data-bs-theme=dark] .highlight .cp { color: #8b949e; font-weight: 600; }
+:root[data-bs-theme=dark] .highlight :is(.k, .kd, .kn, .kp, .kr, .kt, .kv, .o, .ow) { color: #ff7b72; }
+:root[data-bs-theme=dark] .highlight :is(.kc, .m, .mb, .mf, .mh, .mi, .il, .mo, .mx, .na, .no, .py, .se) { color: #79c0ff; }
+:root[data-bs-theme=dark] .highlight :is(.s, .sa, .sb, .sc, .dl, .sd, .s2, .sh, .si, .sx, .s1, .ss) { color: #a5d6ff; }
+:root[data-bs-theme=dark] .highlight :is(.sr, .nt) { color: #7ee787; }
+:root[data-bs-theme=dark] .highlight :is(.nf, .fm, .nd) { color: #d2a8ff; }
+:root[data-bs-theme=dark] .highlight :is(.nb, .bp, .nc, .ne, .nn, .ni, .nl, .nv, .vc, .vg, .vi, .vm) { color: #ffa657; }
+:root[data-bs-theme=dark] .highlight .gd { color: #ffa198; background-color: #490202; }
+:root[data-bs-theme=dark] .highlight .gi { color: #7ee787; background-color: #04260f; }
+:root[data-bs-theme=dark] .highlight :is(.gh, .gu) { color: #79c0ff; font-weight: 700; }
+:root[data-bs-theme=dark] .highlight .err { color: #f85149; background-color: transparent; }

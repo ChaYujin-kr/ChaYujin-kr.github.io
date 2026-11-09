@@ -6,12 +6,19 @@
   --ask-accent: var(--link-color, #0b5cad);
   --ask-border: var(--main-border-color, #d0d7de);
   --ask-surface: color-mix(in srgb, var(--ask-fg) 5%, var(--ask-bg));
-  --ask-grad: linear-gradient(135deg, #3b82f6 0%, #6366f1 50%, #8b5cf6 100%);   /* 파랑→보라 */
-  --ask-user: #3730a3;   /* 내 말풍선(남색): 흰 글자 대비 9.9:1(측정), AAA */
+  /* 블랙 + 실버 스틸. 은색 아이콘/검정 버튼 8.2~15:1 (측정) */
+  --ask-grad: linear-gradient(150deg, #34383d 0%, #1a1c1f 45%, #050506 100%);
+  --ask-rim: #8f969e;                    /* 은색 테두리: 다크 배경에서도 버튼이 보이게(5.6:1) */
+  --ask-green: #3a3f45;                  /* (이름 유지) 포커스·커서 등 강조: 차콜 9.7:1 */
+  --ask-user: #24272b;   /* 내 말풍선(차콜): 흰 글자 대비 15.0:1(측정), AAA */
   --ask-shadow: 0 12px 32px rgba(0, 0, 0, .16), 0 2px 6px rgba(0, 0, 0, .06);
   --ask-w: 400px;
   --ask-gap: 12px;
 }
+/* 다크 모드: Chirpy 7은 :root[data-bs-theme=dark]로 표시(2026-11-09 수정: 예전엔 data-mode로 잘못 씀).
+   스크립트가 속성을 붙이기 전·미리보기 페이지를 위해 시스템 설정도 함께 본다. */
+@media (prefers-color-scheme: dark) { :root:not([data-bs-theme="light"]) { --ask-green: #c3c8ce; --ask-user: #2c3036; } }
+:root[data-bs-theme="dark"] { --ask-green: #c3c8ce; --ask-user: #2c3036; }
 
 /* ── 접힌 상태: 오른쪽 아래 AI 버튼 (파랑·보라 그라데이션, 둥근 모서리, 흰 아이콘, 통통 튀는 모션) ── */
 .ask-launcher {
@@ -20,13 +27,15 @@
   bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   width: 56px; height: 56px; padding: 0; border: 0; border-radius: 18px; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--ask-grad); color: #fff;
-  box-shadow: 0 8px 22px rgba(99, 102, 241, .45), 0 2px 6px rgba(0, 0, 0, .12);
+  background: var(--ask-grad); color: #e9ecef;
+  border: 1px solid var(--ask-rim);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 -2px 4px rgba(0, 0, 0, .5),
+              0 8px 20px rgba(0, 0, 0, .35), 0 2px 5px rgba(0, 0, 0, .2);
   animation: ask-bounce 3.2s ease-in-out infinite;
   transition: transform .15s ease, box-shadow .15s ease;
 }
-.ask-launcher svg { width: 28px; height: 28px; fill: #fff; }
-.ask-launcher:hover { animation-play-state: paused; transform: translateY(-2px) scale(1.06); box-shadow: 0 12px 28px rgba(99, 102, 241, .55); }
+.ask-launcher svg { width: 30px; height: 30px; }
+.ask-launcher:hover { animation-play-state: paused; transform: translateY(-2px) scale(1.06); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), 0 12px 26px rgba(0, 0, 0, .4); }
 .ask-launcher:active { transform: scale(.96); }
 html.ask-open .ask-launcher { display: none; }
 @keyframes ask-bounce {
@@ -43,7 +52,7 @@ html.ask-open .ask-launcher { display: none; }
   top: var(--ask-gap); right: var(--ask-gap); bottom: var(--ask-gap);
   width: min(var(--ask-w), calc(100vw - 2 * var(--ask-gap)));
   display: flex; flex-direction: column;
-  background: linear-gradient(to bottom, var(--ask-bg) 55%, color-mix(in srgb, #6366f1 7%, var(--ask-bg)));
+  background: var(--ask-bg);
   color: var(--ask-fg);
   border: 1px solid var(--ask-border); border-radius: 18px; box-shadow: var(--ask-shadow);
   font-size: .93rem; line-height: 1.65;
@@ -59,7 +68,9 @@ html.ask-open .ask-panel { transform: none; visibility: visible; transition: tra
 }
 
 .ask-head { display: flex; align-items: center; gap: .25rem; padding: .55rem .6rem .55rem 1rem; }
-.ask-head h2 { flex: 1; min-width: 0; font-size: .95rem; margin: 0; font-weight: 600; }
+.ask-head .ask-titles { flex: 1; min-width: 0; }
+.ask-head h2 { font-size: .95rem; margin: 0; font-weight: 600; line-height: 1.35; }
+.ask-head p { margin: 0; font-size: .74rem; color: var(--ask-muted); }
 .ask-iconbtn {
   flex: none; width: 2.2rem; height: 2.2rem; border-radius: 999px; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
@@ -72,7 +83,7 @@ html.ask-open .ask-panel { transform: none; visibility: visible; transition: tra
 /* 대화 */
 .ask-log { flex: 1; min-height: 0; overflow-y: auto; padding: .5rem 1.1rem 1rem; display: flex; flex-direction: column; gap: .9rem; overscroll-behavior: contain; }
 .ask-welcome { margin: auto 0; text-align: center; padding: 1rem 0; }
-.ask-welcome svg { width: 44px; height: 44px; }
+.ask-welcome svg { width: 52px; height: 52px; }
 .ask-welcome h3 { font-size: 1.45rem; font-weight: 500; margin: .6rem 0 .3rem; }
 .ask-welcome p { margin: 0; font-size: .85rem; color: var(--ask-muted); }
 
@@ -87,9 +98,9 @@ html.ask-open .ask-panel { transform: none; visibility: visible; transition: tra
   padding: .7rem .95rem; border-radius: 18px 18px 18px 4px; white-space: pre-wrap;
 }
 .ask-msg.bot.is-error .ask-bubble, .ask-msg.bot.is-none .ask-bubble { color: var(--ask-muted); }
-.ask-msg.bot.is-streaming .ask-text::after { content: "▍"; margin-left: 1px; animation: ask-blink 1s steps(1) infinite; color: #6366f1; }
+.ask-msg.bot.is-streaming .ask-text::after { content: "▍"; margin-left: 1px; animation: ask-blink 1s steps(1) infinite; color: var(--ask-green); }
 .ask-thinking { display: inline-flex; gap: 4px; vertical-align: middle; margin-right: .4rem; }
-.ask-thinking i { width: 7px; height: 7px; border-radius: 50%; background: var(--ask-grad); animation: ask-dot 1.2s infinite ease-in-out; }
+.ask-thinking i { width: 7px; height: 7px; border-radius: 50%; background: var(--ask-green); animation: ask-dot 1.2s infinite ease-in-out; }
 .ask-thinking i:nth-child(2) { animation-delay: .15s; }
 .ask-thinking i:nth-child(3) { animation-delay: .3s; }
 .ask-meta { font-size: .75rem; color: var(--ask-muted); margin: .3rem .3rem 0; font-variant-numeric: tabular-nums; }
@@ -104,7 +115,7 @@ html.ask-open .ask-panel { transform: none; visibility: visible; transition: tra
   font: inherit; font-size: .85rem; padding: .2rem .65rem; border-radius: 999px; cursor: pointer;
   border: 1px solid var(--ask-border); background: var(--ask-bg); color: var(--ask-fg);
 }
-.ask-feedback button[aria-pressed="true"] { border-color: #6366f1; border-width: 2px; }
+.ask-feedback button[aria-pressed="true"] { border-color: var(--ask-green); border-width: 2px; }
 
 /* 하단: 예시 질문(오른쪽 정렬 칩) + 안내 + 입력 */
 .ask-foot { padding: .4rem .9rem calc(.9rem + env(safe-area-inset-bottom, 0px)); }
@@ -116,9 +127,9 @@ html.ask-open .ask-panel { transform: none; visibility: visible; transition: tra
   border: 1px solid var(--ask-border); background: var(--ask-bg); color: var(--ask-fg);
   box-shadow: 0 1px 3px rgba(0, 0, 0, .06);
 }
-.ask-example:hover { border-color: #6366f1; }
+.ask-example:hover { border-color: var(--ask-green); }
 .ask-card { background: var(--ask-bg); border: 1px solid var(--ask-border); border-radius: 18px; box-shadow: 0 2px 10px rgba(0, 0, 0, .06); padding: .55rem .55rem .45rem .9rem; }
-.ask-card:focus-within { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, .22); }
+.ask-card:focus-within { border-color: var(--ask-green); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ask-green) 25%, transparent); }
 .ask-notice { font-size: .73rem; color: var(--ask-muted); margin: 0 0 .25rem; }
 .ask-notice a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .ask-box { display: flex; align-items: flex-end; gap: .4rem; }
@@ -129,9 +140,9 @@ html.ask-open .ask-panel { transform: none; visibility: visible; transition: tra
 .ask-send {
   flex: none; width: 2.3rem; height: 2.3rem; border-radius: 12px; border: 0; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--ask-grad); color: #fff;
+  background: var(--ask-grad); color: #e9ecef; border: 1px solid var(--ask-rim);
 }
-.ask-send svg { width: 18px; height: 18px; fill: #fff; }
+.ask-send svg { width: 18px; height: 18px; fill: currentColor; }
 .ask-send:disabled { opacity: .4; cursor: not-allowed; }
 .ask-row2 { display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
 .ask-count { font-size: .7rem; color: var(--ask-muted); font-variant-numeric: tabular-nums; }
@@ -140,7 +151,7 @@ html.ask-open .ask-panel { transform: none; visibility: visible; transition: tra
 .ask-human { margin-top: .4rem; }
 
 .ask-panel button:focus-visible, .ask-panel a:focus-visible, .ask-launcher:focus-visible {
-  outline: 3px solid #6366f1; outline-offset: 2px;
+  outline: 3px solid var(--ask-green); outline-offset: 2px;
 }
 .ask-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
@@ -173,6 +184,16 @@ html.ask-open .ask-panel { transform: none; visibility: visible; transition: tra
 }
 @media (forced-colors: active) {
   .ask-launcher, .ask-send, .ask-msg.user { forced-color-adjust: none; background: ButtonText; color: ButtonFace; }
-  .ask-launcher svg, .ask-send svg { fill: ButtonFace; }
+  .ask-launcher svg * { stroke: ButtonFace; }
+  .ask-launcher svg .ask-fill { fill: ButtonFace; }
+  .ask-send svg { fill: ButtonFace; }
   .ask-panel { border: 2px solid CanvasText; }
 }
+
+/* 첫 화면 가운데 봇: 검정 둥근 배지 안에 은색 봇 */
+.ask-welcome .ask-badge {
+  display: inline-flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 22px;
+  background: var(--ask-grad); border: 1px solid var(--ask-rim);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 6px 16px rgba(0, 0, 0, .25);
+}
+.ask-welcome .ask-badge svg { width: 40px; height: 40px; }

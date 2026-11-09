@@ -6,6 +6,7 @@ Chirpy head 확장 지점
   · 번역: 크롬 내장 Translator API, 본문 글자만 번역하고 코드·날짜는 그대로
   · 음성: Web Speech API, 지원하지 않으면 버튼을 만들지 않음
 - AI 질문 창: assets/js/ask.js, 설정은 _data/assistant.yml (배포 빌드에서는 enabled일 때만)
+- 서체·코드 색: Pretendard(직접 호스팅), 다크 모드 코드 색 GitHub Dark → assets/css/custom.css
 - 사용자 설정 대응: prefers-reduced-motion, prefers-contrast, forced-colors
 - Google Tag Manager (배포 빌드에서만)
 {%- endcomment -%}
@@ -33,6 +34,8 @@ Chirpy head 확장 지점
 <!-- Google Tag Manager: GA4 태그는 GTM 컨테이너 안에서 설정 (_gtm/README.md) -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-MJMC3GPS');</script>
 {%- endif %}
+<link rel="stylesheet" href="{{ '/assets/fonts/pretendard/pretendardvariable-dynamic-subset.css' | relative_url }}">
+<link rel="stylesheet" href="{{ '/assets/css/custom.css' | relative_url }}">
 <style>
   .series-nav { border: 1px solid var(--main-border-color, #d0d7de); border-radius: 8px; padding: .65rem 1rem; margin: 0 0 1rem; }
   .series-nav summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; align-items: center; gap: .5rem; }

@@ -93,13 +93,18 @@
     ? cfg.examples.slice(0, 2).map(String)
     : ["드리프트 경보가 울리면 바로 재학습해야 하나요?", "지연 라벨 환경에서 서빙 로그에 무엇을 남겨야 해요?"];
 
-  const SPARK = "M12 2c.6 5.4 4.6 9.4 10 10-5.4.6-9.4 4.6-10 10-.6-5.4-4.6-9.4-10-10 5.4-.6 9.4-4.6 10-10z";
+  /* 단순한 봇 얼굴 (직접 그림): 둥근 사각 얼굴, 두 눈, 양쪽 귀, 안테나. 색은 은색(스틸) 그라데이션 */
+  const BOT = (g) =>
+    `<defs><linearGradient id="${g}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f6f8"/>` +
+    `<stop offset=".55" stop-color="#c3c8ce"/><stop offset="1" stop-color="#8f969e"/></linearGradient></defs>` +
+    `<g fill="none" stroke="url(#${g})" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">` +
+    `<rect x="4.5" y="7" width="15" height="12" rx="4"/><path d="M12 7V4.6"/><path d="M2.6 11.5v3M21.4 11.5v3"/></g>` +
+    `<g class="ask-fill" fill="url(#${g})"><circle cx="12" cy="3.4" r="1.3"/><circle cx="9.3" cy="12.6" r="1.45"/>` +
+    `<circle cx="14.7" cy="12.6" r="1.45"/></g>`;
   const svg = (inner, extra = "") => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" ${extra}>${inner}</svg>`;
   const ICON = {
-    spark: svg(`<path d="${SPARK}"/>`),
-    sparkGrad: svg(`<defs><linearGradient id="ask-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b82f6"/>` +
-                   `<stop offset=".5" stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>` +
-                   `<path fill="url(#ask-g)" d="${SPARK}"/>`),
+    spark: svg(BOT("ask-steel-a")),
+    sparkGrad: `<span class="ask-badge">${svg(BOT("ask-steel-b"))}</span>`,
     send: svg('<path d="M12 4l7 7-1.4 1.4L13 7.8V20h-2V7.8l-4.6 4.6L5 11z"/>'),
     close: svg('<path d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7 4.3 4.3l6.3 6.3 6.3-6.3z"/>'),
     collapse: svg('<path d="M9.3 5.3 15.9 12l-6.6 6.7-1.4-1.4 5.2-5.3-5.2-5.3z"/>'),
@@ -138,7 +143,9 @@
     const btnNew = el("button", { type: "button", class: "ask-iconbtn", "aria-label": "새 대화", title: "새 대화" });
     btnNew.innerHTML = ICON.reset;
     const btnClose = el("button", { type: "button", class: "ask-iconbtn", "aria-label": "접기", title: "접기" });
-    head.append(el("h2", { id: "ask-title" }, "블로그 AI"), btnNew, btnClose);
+    const titles = el("div", { class: "ask-titles" });
+    titles.append(el("h2", { id: "ask-title" }, "블로그 AI"), el("p", null, "OpenAI 모델이 이 블로그 글만 근거로 답해요"));
+    head.append(titles, btnNew, btnClose);
 
     const log = el("div", { class: "ask-log", role: "log", "aria-live": "polite", "aria-relevant": "additions" });
     const announce = el("div", { class: "ask-sr", "aria-live": "polite" });
@@ -227,7 +234,7 @@
       const w = el("div", { class: "ask-welcome" });
       const icon = el("div");
       icon.innerHTML = ICON.sparkGrad;
-      w.append(icon, el("h3", null, "무엇을 도와드릴까요?"), el("p", null, "이 블로그의 글을 근거로, 해당 단락 링크와 함께 답해요"));
+      w.append(icon, el("h3", null, "블로그 글에서 찾아 드릴게요"), el("p", null, "답과 함께 근거가 된 단락 링크를 드려요"));
       log.append(w);
       exBox.hidden = false;
     };
