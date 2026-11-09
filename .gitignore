@@ -1,7 +1,7 @@
 # Bundler cache
 .bundle
 vendor
-Gemfile.lock
+# Gemfile.lock은 커밋한다(버전·체크섬 고정, 2026-11-09)
 
 # Jekyll cache
 .jekyll-cache
