@@ -5,3 +5,7 @@ endpoint: "https://blog-assistant-ask.chauujjiinn.workers.dev"
 # Turnstile 사이트 키(공개 값, 도메인 chayujin-kr.github.io 전용). 비밀 키는 게이트웨이 시크릿에만.
 # 로컬 미리보기(gateway/dev/harness.html)는 테스트 키(1x00000000000000000000AA)를 쓴다.
 turnstile_sitekey: "0x4AAAAAAF5lr0iIrteuFalu"
+# 사이드바 예시 질문 2개 (오른쪽 아래 칩)
+examples:
+  - "드리프트 경보가 울리면 바로 재학습해야 하나요?"
+  - "지연 라벨 환경에서 서빙 로그에 무엇을 남겨야 해요?"

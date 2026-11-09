@@ -56,45 +56,6 @@ Chirpy head 확장 지점
   @media (max-width: 575.98px) { .site-tools .tool-label, .site-tools .tool-status { display: none; } .site-tools { gap: .25rem; } }
   .series-nav summary:focus-visible, .site-tools button:focus-visible, .site-tools select:focus-visible { outline: 3px solid var(--link-color, #0b5cad); outline-offset: 2px; }
 
-  /* AI 질문 패널: 오른쪽 패널, 휴대폰은 아래 시트 */
-  .ask-panel { position: fixed; z-index: 1150; top: 4.5rem; right: 1rem; width: min(26rem, calc(100% - 2rem));
-    max-height: calc(100vh - 6rem); overflow-y: auto; background: var(--main-bg, #fff); color: var(--text-color, #1f2328);
-    border: 1px solid var(--main-border-color, #d0d7de); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.18);
-    padding: .9rem 1rem 1rem; font-size: .92rem; line-height: 1.6; }
-  .ask-panel[hidden] { display: none; }
-  .ask-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
-  .ask-head h2 { font-size: 1rem; margin: 0; }
-  .ask-close { font: inherit; font-size: 1.3rem; line-height: 1; width: 2rem; height: 2rem; border-radius: 999px; cursor: pointer;
-    border: 1px solid transparent; background: transparent; color: inherit; }
-  .ask-notice { font-size: .8rem; color: var(--text-muted-color, #57606a); margin: .35rem 0 .6rem; }
-  .ask-notice a, .ask-links a { text-decoration: underline; text-underline-offset: 3px; }
-  .ask-label { display: block; font-size: .82rem; margin-bottom: .3rem; }
-  .ask-form textarea { width: 100%; font: inherit; padding: .5rem .6rem; border-radius: 8px; resize: vertical;
-    border: 1px solid var(--btn-border-color, #8c959f); background: var(--main-bg, #fff); color: var(--text-color, #1f2328); }
-  .ask-human { margin: .5rem 0; min-height: 0; }
-  .ask-row { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
-  .ask-count { font-size: .75rem; color: var(--text-muted-color, #57606a); }
-  .ask-count.over { color: #b3261e; font-weight: 700; }
-  .ask-submit, .ask-feedback button { font: inherit; padding: .4rem 1rem; border-radius: 999px; cursor: pointer;
-    border: 1px solid var(--link-color, #0b5cad); background: var(--link-color, #0b5cad); color: var(--main-bg, #fff); }
-  .ask-submit:disabled { opacity: .6; cursor: progress; }
-  .ask-out { margin-top: .8rem; }
-  .ask-out:empty { display: none; }
-  .ask-answer { margin: 0 0 .5rem; white-space: pre-wrap; }
-  .ask-error, .ask-limited { color: var(--text-muted-color, #57606a); }
-  .ask-sub { font-size: .8rem; font-weight: 600; margin: .4rem 0 .2rem; color: var(--text-muted-color, #57606a); }
-  .ask-links { margin: 0; padding-left: 1.2rem; }
-  .ask-feedback { display: flex; gap: .4rem; margin-top: .6rem; }
-  .ask-feedback button { background: var(--main-bg, #fff); color: var(--text-color, #1f2328); border-color: var(--btn-border-color, #8c959f); padding: .25rem .7rem; }
-  .ask-feedback button[aria-pressed="true"] { border-color: var(--link-color, #0b5cad); border-width: 2px; }
-  .ask-panel button:focus-visible, .ask-panel a:focus-visible, .ask-panel textarea:focus-visible { outline: 3px solid var(--link-color, #0b5cad); outline-offset: 2px; }
-  @media (max-width: 575.98px) {
-    .ask-panel { top: auto; right: 0; left: 0; bottom: 0; width: 100%; max-height: 80vh; border-radius: 16px 16px 0 0;
-      padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)); }
-  }
-  @media (prefers-contrast: more) { .ask-panel, .ask-form textarea { border-width: 2px; border-color: currentColor; } }
-  @media (forced-colors: active) { .ask-submit { forced-color-adjust: none; background: ButtonText; color: ButtonFace; } }
-
   #reading-progress { position: fixed; top: 0; left: 0; height: 3px; width: 0; z-index: 1100;
     background: var(--link-color, #0b5cad); transition: width .1s linear; }
 
@@ -342,10 +303,12 @@ document.addEventListener("DOMContentLoaded", () => {
 {%- if jekyll.environment != "production" -%}{%- assign ask_on = true -%}{%- endif -%}
 {%- if ask.endpoint == nil or ask.endpoint == "" -%}{%- assign ask_on = false -%}{%- endif -%}
 {%- if ask_on %}
+<link rel="stylesheet" href="{{ '/assets/css/ask.css' | relative_url }}">
 <script>
-  /* AI 질문 창 설정 (공개 값만: 주소와 Turnstile 사이트 키) */
+  /* AI 질문 사이드바 설정 (공개 값만: 주소, Turnstile 사이트 키, 예시 질문) */
   window.BLOG_ASK = { endpoint: {{ ask.endpoint | jsonify }}, sitekey: {{ ask.turnstile_sitekey | jsonify }},
-                      siteUrl: {{ site.url | jsonify }}, privacyUrl: {{ '/privacy/' | relative_url | jsonify }} };
+                      siteUrl: {{ site.url | jsonify }}, privacyUrl: {{ '/privacy/' | relative_url | jsonify }},
+                      examples: {{ ask.examples | jsonify }} };
 </script>
 <script src="{{ '/assets/js/ask.js' | relative_url }}" defer></script>
 {%- endif %}

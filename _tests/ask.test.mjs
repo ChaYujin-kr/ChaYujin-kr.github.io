@@ -32,13 +32,13 @@ test("readConsent: ai_logging === true일 때만, 저장소 오류는 거부로"
 
 test("buildRequest: 앞뒤 공백 제거, page는 경로만", () => {
   assert.deepEqual(core.buildRequest("  질문  ", "t", true, "/posts/a/"),
-    { question: "질문", turnstile_token: "t", consent_logging: true, page: "/posts/a/" });
+    { question: "질문", turnstile_token: "t", consent_logging: true, stream: true, page: "/posts/a/" });
   assert.equal(core.buildRequest("q", "t", false, "https://x").page, undefined);
 });
 
 test("interpret: 상태 코드별 화면 문구, 서버 문구가 이상하면 기본 문구", () => {
   assert.equal(core.interpret(200, { can_answer: true, answer: "답", answer_id: "id" }).kind, "answered");
-  assert.equal(core.interpret(200, { can_answer: false }).kind, "no_answer");
+  assert.equal(core.interpret(200, { can_answer: false }).kind, "none");
   assert.equal(core.interpret(429, { error: "질문이 너무 잦아요." }).kind, "limited");
   assert.equal(core.interpret(503, { error: "오늘은 쉬어요." }).text, "오늘은 쉬어요.");
   assert.match(core.interpret(500, { error: "x".repeat(500) }).text, /지금은 답변할 수 없어요/);
@@ -49,4 +49,16 @@ test("interpret: 상태 코드별 화면 문구, 서버 문구가 이상하면 �
 test("cpLen·lenBucket: 이모지는 1글자", () => {
   assert.equal(core.cpLen("😀가"), 2);
   assert.deepEqual([10, 51, 150, 400].map(core.lenBucket), ["<=50", "<=100", "<=200", "<=500"]);
+});
+
+test("parseSSE: 조각이 잘려 와도 완성된 이벤트만, 깨진 건 버림", () => {
+  const a = core.parseSSE('event: delta\ndata: {"text":"가"}\n\nevent: delta\ndata: {"te');
+  assert.deepEqual(a.events, [{ event: "delta", data: { text: "가" } }]);
+  const b = core.parseSSE(a.rest + 'xt":"가나"}\n\nevent: done\ndata: 깨짐\n\n');
+  assert.deepEqual(b.events, [{ event: "delta", data: { text: "가나" } }]);
+  assert.equal(b.rest, "");
+});
+
+test("formatSeconds: 10초 미만은 소수 한 자리", () => {
+  assert.deepEqual([340, 3400, 12600].map(core.formatSeconds), ["0.3초", "3.4초", "13초"]);
 });

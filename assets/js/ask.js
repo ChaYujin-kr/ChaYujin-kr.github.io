@@ -1,20 +1,20 @@
 /*
- * 블로그 AI 질문 창 (2단계 G3)
- * - 상단 바에 "질문하기" 버튼 → 오른쪽 패널(휴대폰은 아래 시트)
- * - 답변은 textContent로만 넣는다. 링크는 블로그 주소(/posts/...)인 것만 <a>로 만든다.
- * - 봇 확인(Turnstile) 스크립트는 패널을 처음 열 때만 불러온다(모든 방문자에게 제3자 스크립트를 싣지 않음).
- * - 질문 저장 여부는 동의 설정(localStorage "consent-v1".ai_logging)을 따른다.
- * - GA4로는 질문 내용을 보내지 않는다(결과 유형·글자 수 구간만).
- * 설정: window.BLOG_ASK = { endpoint, sitekey, siteUrl }  (_data/assistant.yml)
+ * 블로그 AI 질문 사이드바
+ * - 오른쪽에 붙는 사이드바(휴대폰은 아래 시트). 접기/펼치기, 열린 상태는 이 탭에서만 기억.
+ * - 답변은 생성되는 대로 보여준다(서버 SSE). 서버가 출력 가드를 거친 "지금까지의 안전한 전체 글"을 보내고,
+ *   끝나면 인용 확인을 마친 최종 답으로 바꾼다(인용이 없으면 "찾지 못했어요").
+ * - 글은 textContent로만 넣는다. 링크는 블로그 글 주소(/posts/)만 <a>로 만든다.
+ * - 봇 확인(Turnstile)은 사이드바를 처음 열 때만 불러오고, 필요할 때만 보인다(interaction-only).
+ * - GA4로는 질문 내용을 보내지 않는다(결과 유형·글자 수 구간·걸린 시간만).
+ * 설정: window.BLOG_ASK = { endpoint, sitekey, siteUrl, privacyUrl, examples: [..] }  (_data/assistant.yml)
  */
 (function (root) {
   "use strict";
 
-  /* ── 순수 함수 (tools 없이 node로 테스트: _tests/ask.test.mjs) ── */
+  /* ── 순수 함수 (_tests/ask.test.mjs) ── */
   const MAX_CHARS = 500;
   const cpLen = (s) => Array.from(s).length;
 
-  /** 서버가 준 링크 중 블로그 글 주소만 남긴다(다른 사이트·스킴 차단). */
   function safeLinks(links, siteUrl) {
     if (!Array.isArray(links)) return [];
     let site;
@@ -36,192 +36,364 @@
   }
 
   function buildRequest(question, token, consent, path) {
-    return { question: question.trim(), turnstile_token: token, consent_logging: consent,
+    return { question: question.trim(), turnstile_token: token, consent_logging: consent, stream: true,
              page: typeof path === "string" && path.startsWith("/") ? path.slice(0, 200) : undefined };
   }
 
   const lenBucket = (n) => (n <= 50 ? "<=50" : n <= 100 ? "<=100" : n <= 200 ? "<=200" : "<=500");
+  const formatSeconds = (ms) => (ms < 10000 ? (ms / 1000).toFixed(1) : String(Math.round(ms / 1000))) + "초";
 
-  /** 응답 → 화면 상태. 서버 오류 문구는 서버가 고정 문구만 주지만, 형식이 이상하면 기본 문구로. */
+  /** 스트리밍이 아닌 응답(오류 JSON 등) 해석. */
   function interpret(status, body) {
     if (status === 200 && body && typeof body.can_answer === "boolean") {
       return body.can_answer
         ? { kind: "answered", text: String(body.answer || ""), answerId: typeof body.answer_id === "string" ? body.answer_id : null }
-        : { kind: "no_answer", text: "블로그에서 답을 찾지 못했어요. 다른 표현으로 물어보거나 검색을 써 보세요.", answerId: null };
+        : { kind: "none", text: NONE_TEXT, answerId: null };
     }
-    const msg = body && typeof body.error === "string" && body.error.length < 200 ? body.error : "지금은 답변할 수 없어요. 잠시 후 다시 시도해 주세요.";
+    const msg = body && typeof body.error === "string" && body.error.length < 200 ? body.error : ERROR_TEXT;
     return { kind: status === 429 || status === 503 ? "limited" : "error", text: msg, answerId: null };
   }
+  const NONE_TEXT = "블로그에서 답을 찾지 못했어요. 다른 표현으로 물어보거나 검색을 써 보세요.";
+  const ERROR_TEXT = "지금은 답변할 수 없어요. 잠시 후 다시 시도해 주세요.";
 
-  const core = { MAX_CHARS, cpLen, safeLinks, readConsent, buildRequest, lenBucket, interpret };
+  /** SSE 조각 해석: 완성된 이벤트들과 남은 조각. 형식이 깨진 이벤트는 버린다. */
+  function parseSSE(buffer) {
+    const events = [];
+    const parts = buffer.split("\n\n");
+    const rest = parts.pop();
+    for (const block of parts) {
+      let event = "message";
+      let data = "";
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        else if (line.startsWith("data:")) data += line.slice(5).trim();
+      }
+      try { events.push({ event, data: JSON.parse(data) }); } catch { /* 버림 */ }
+    }
+    return { events, rest };
+  }
+
+  const core = { MAX_CHARS, cpLen, safeLinks, readConsent, buildRequest, lenBucket, formatSeconds, interpret, parseSSE };
   if (typeof module !== "undefined" && module.exports) { module.exports = core; return; }
   root.BlogAskCore = core;
 
   /* ── 화면 ── */
   const cfg = root.BLOG_ASK;
   if (!cfg || !cfg.endpoint || !cfg.sitekey) return;
+  const doc = document;
+  const html = doc.documentElement;
   const track = (e, p) => { if (typeof root.blogTrack === "function") root.blogTrack(e, p); };
-  /* 일부 환경(차단된 저장소, 샌드박스)에서는 localStorage에 접근만 해도 예외가 난다 */
   const storage = { getItem: (k) => { try { return root.localStorage.getItem(k); } catch { return null; } } };
+  const session = {
+    get: (k) => { try { return root.sessionStorage.getItem(k); } catch { return null; } },
+    set: (k, v) => { try { root.sessionStorage.setItem(k, v); } catch { /* 무시 */ } },
+  };
+  const mobileMq = root.matchMedia ? root.matchMedia("(max-width: 767.98px)") : { matches: false, addEventListener() {} };
+  const examples = Array.isArray(cfg.examples) && cfg.examples.length
+    ? cfg.examples.slice(0, 2).map(String)
+    : ["드리프트 경보가 울리면 바로 재학습해야 하나요?", "지연 라벨 환경에서 서빙 로그에 무엇을 남겨야 해요?"];
+
+  const SPARK = "M12 2c.6 5.4 4.6 9.4 10 10-5.4.6-9.4 4.6-10 10-.6-5.4-4.6-9.4-10-10 5.4-.6 9.4-4.6 10-10z";
+  const svg = (inner, extra = "") => `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" ${extra}>${inner}</svg>`;
+  const ICON = {
+    spark: svg(`<path d="${SPARK}"/>`),
+    sparkGrad: svg(`<defs><linearGradient id="ask-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b82f6"/>` +
+                   `<stop offset=".5" stop-color="#6366f1"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>` +
+                   `<path fill="url(#ask-g)" d="${SPARK}"/>`),
+    send: svg('<path d="M12 4l7 7-1.4 1.4L13 7.8V20h-2V7.8l-4.6 4.6L5 11z"/>'),
+    close: svg('<path d="M18.3 5.7 12 12l6.3 6.3-1.4 1.4L10.6 13.4 4.3 19.7 2.9 18.3 9.2 12 2.9 5.7 4.3 4.3l6.3 6.3 6.3-6.3z"/>'),
+    collapse: svg('<path d="M9.3 5.3 15.9 12l-6.6 6.7-1.4-1.4 5.2-5.3-5.2-5.3z"/>'),
+    down: svg('<path d="M5.3 8.3 12 14.9l6.7-6.6 1.4 1.4L12 17.8 3.9 9.7z"/>'),
+    reset: svg('<path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z"/>'),
+  };
+
+  function el(tag, attrs, text) {
+    const e = doc.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+    if (text != null) e.textContent = text;
+    return e;
+  }
 
   let turnstileLoading = null;
   const loadTurnstile = () => turnstileLoading || (turnstileLoading = new Promise((resolve, reject) => {
     if (root.turnstile) return resolve(root.turnstile);
-    const s = document.createElement("script");
+    const s = doc.createElement("script");
     s.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
     s.async = true;
     s.onload = () => resolve(root.turnstile);
     s.onerror = () => { turnstileLoading = null; reject(new Error("turnstile")); };
-    document.head.appendChild(s);
+    doc.head.appendChild(s);
   }));
 
-  function el(tag, attrs, text) {
-    const e = document.createElement(tag);
-    for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
-    if (text) e.textContent = text;
-    return e;
-  }
-
   function init() {
-    const tools = document.querySelector(".site-tools");
-    if (!tools) return;
+    /* 열기 버튼 */
+    const launcher = el("button", { type: "button", class: "ask-launcher", "aria-controls": "ask-panel", "aria-expanded": "false" });
+    launcher.innerHTML = ICON.spark;
+    launcher.setAttribute("aria-label", "AI에게 질문하기");
+    launcher.setAttribute("title", "AI에게 질문하기");
 
-    const btn = el("button", { type: "button", "aria-haspopup": "dialog", "aria-expanded": "false", "aria-controls": "ask-panel", "aria-label": "블로그에 질문하기" });
-    btn.innerHTML = '<i class="fas fa-comments" aria-hidden="true"></i><span class="tool-label">질문하기</span>';
-    const status = tools.querySelector(".tool-status");
-    tools.insertBefore(btn, status || null);
-
-    const panel = el("section", { id: "ask-panel", class: "ask-panel", role: "dialog", "aria-modal": "false", "aria-labelledby": "ask-title", translate: "no", hidden: "" });
+    /* 사이드바 */
+    const panel = el("aside", { id: "ask-panel", class: "ask-panel", "aria-labelledby": "ask-title", translate: "no" });
     const head = el("div", { class: "ask-head" });
-    head.append(el("h2", { id: "ask-title" }, "블로그에 질문하기"));
-    const close = el("button", { type: "button", class: "ask-close", "aria-label": "닫기" }, "×");
-    head.append(close);
+    const btnNew = el("button", { type: "button", class: "ask-iconbtn", "aria-label": "새 대화", title: "새 대화" });
+    btnNew.innerHTML = ICON.reset;
+    const btnClose = el("button", { type: "button", class: "ask-iconbtn", "aria-label": "접기", title: "접기" });
+    head.append(el("h2", { id: "ask-title" }, "블로그 AI"), btnNew, btnClose);
 
+    const log = el("div", { class: "ask-log", role: "log", "aria-live": "polite", "aria-relevant": "additions" });
+    const announce = el("div", { class: "ask-sr", "aria-live": "polite" });
+
+    const foot = el("div", { class: "ask-foot" });
+    const exBox = el("div", { class: "ask-examples", role: "group", "aria-label": "예시 질문" });
+    for (const q of examples) {
+      const b = el("button", { type: "button", class: "ask-example" }, q);
+      b.addEventListener("click", () => { input.value = q; onInput(); submit("example"); });
+      exBox.append(b);
+    }
+    const card = el("div", { class: "ask-card" });
     const notice = el("p", { class: "ask-notice" });
     const noticeText = el("span");
-    const change = el("a", { href: "#" }, "바꾸기");
-    notice.append(noticeText, " ", change);
-
+    const change = el("a", { href: cfg.privacyUrl || "/privacy/" }, "설정");
+    notice.append(noticeText, " · ", change);
     const form = el("form", { class: "ask-form" });
-    const label = el("label", { for: "ask-input", class: "ask-label" }, "이 블로그의 글을 근거로 답해요. 개인정보는 입력하지 마세요.");
-    const input = el("textarea", { id: "ask-input", rows: "3", maxlength: String(MAX_CHARS * 2), placeholder: "예: 드리프트 경보가 울리면 바로 재학습해야 하나요?", "aria-describedby": "ask-count" });
-    const row = el("div", { class: "ask-row" });
+    const box = el("div", { class: "ask-box" });
+    const input = el("textarea", { id: "ask-input", rows: "1", placeholder: "블로그 글에 대해 물어보세요",
+                                   "aria-label": "질문", "aria-describedby": "ask-count" });
+    const send = el("button", { type: "submit", class: "ask-send", "aria-label": "보내기", disabled: "" });
+    send.innerHTML = ICON.send;
+    box.append(input, send);
+    const row2 = el("div", { class: "ask-row2" });
+    const hint = el("span", { class: "ask-count" }, "Enter 보내기 · Shift+Enter 줄바꿈");
     const count = el("span", { id: "ask-count", class: "ask-count" }, `0 / ${MAX_CHARS}`);
-    const submit = el("button", { type: "submit", class: "ask-submit" }, "질문");
-    row.append(count, submit);
+    row2.append(hint, count);
     const human = el("div", { class: "ask-human" });
-    form.append(label, input, human, row);
+    form.append(box, row2);
+    card.append(notice, form);
+    foot.append(exBox, card, human);
+    panel.append(head, log, foot, announce);
+    doc.body.append(launcher, panel);
 
-    const out = el("div", { class: "ask-out", "aria-live": "polite" });
-    panel.append(head, notice, form, out);
-    document.body.appendChild(panel);
+    /* 상단 바 버튼(있으면) */
+    const tools = doc.querySelector(".site-tools");
+    let topBtn = null;
+    if (tools) {
+      topBtn = el("button", { type: "button", "aria-controls": "ask-panel", "aria-expanded": "false", "aria-label": "AI에게 질문하기" });
+      topBtn.innerHTML = '<i class="fas fa-comments" aria-hidden="true"></i><span class="tool-label">질문하기</span>';
+      tools.insertBefore(topBtn, tools.querySelector(".tool-status"));
+    }
+
+    /* 상태 */
+    let busy = false;
+    let widgetId = null;
+
+    const setMobile = () => {
+      html.classList.toggle("ask-mobile", mobileMq.matches);
+      btnClose.innerHTML = mobileMq.matches ? ICON.down : ICON.collapse;
+    };
+    setMobile();
+    mobileMq.addEventListener("change", setMobile);
 
     const updateNotice = () => {
       noticeText.textContent = readConsent(storage)
-        ? "질문 저장: 동의함 (가린 뒤 90일 보관)."
-        : "질문 저장: 안 함 (답변에는 영향 없음).";
+        ? "질문 저장: 동의함(개인정보는 가린 뒤 90일) · 개인정보는 입력하지 마세요"
+        : "질문 저장 안 함 · 개인정보는 입력하지 마세요";
     };
     change.addEventListener("click", (e) => {
-      e.preventDefault();
-      if (typeof root.openConsentSettings === "function") root.openConsentSettings();
-      else location.href = (cfg.privacyUrl || "/privacy/");
+      if (typeof root.openConsentSettings === "function") { e.preventDefault(); root.openConsentSettings(); }
     });
 
-    let widgetId = null;
     const ensureHuman = async () => {
       if (widgetId !== null) return;
       try {
         const ts = await loadTurnstile();
-        widgetId = ts.render(human, { sitekey: cfg.sitekey, size: "flexible", language: "ko",
-                                      "refresh-expired": "auto", action: "ask" });
+        widgetId = ts.render(human, { sitekey: cfg.sitekey, appearance: "interaction-only", size: "flexible",
+                                      language: "ko", "refresh-expired": "auto", action: "ask" });
       } catch {
-        human.textContent = "사람 확인 도구를 불러오지 못했어요. 광고 차단 기능이 막고 있을 수 있어요.";
+        human.textContent = "사람 확인 도구를 불러오지 못했어요. 광고·추적 차단 기능이 막고 있을 수 있어요.";
       }
     };
-
-    const open = () => {
-      panel.hidden = false; btn.setAttribute("aria-expanded", "true");
-      updateNotice(); ensureHuman(); input.focus();
-      track("ai_panel_open", {});
+    const waitToken = async (ms) => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < ms) {
+        const tok = root.turnstile && widgetId !== null ? root.turnstile.getResponse(widgetId) : "";
+        if (tok) return tok;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      return "";
     };
-    const hide = () => { panel.hidden = true; btn.setAttribute("aria-expanded", "false"); btn.focus(); };
-    btn.addEventListener("click", () => (panel.hidden ? open() : hide()));
-    close.addEventListener("click", hide);
-    panel.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); });
-    input.addEventListener("input", () => {
+
+    const showEmpty = () => {
+      log.replaceChildren();
+      const w = el("div", { class: "ask-welcome" });
+      const icon = el("div");
+      icon.innerHTML = ICON.sparkGrad;
+      w.append(icon, el("h3", null, "무엇을 도와드릴까요?"), el("p", null, "이 블로그의 글을 근거로, 해당 단락 링크와 함께 답해요"));
+      log.append(w);
+      exBox.hidden = false;
+    };
+    showEmpty();
+
+    const open = (via) => {
+      html.classList.add("ask-open");
+      [launcher, topBtn].forEach((b) => b && b.setAttribute("aria-expanded", "true"));
+      session.set("ask-open", "1");
+      updateNotice(); ensureHuman();
+      if (!mobileMq.matches || via !== "restore") setTimeout(() => input.focus(), 50);
+      if (via !== "restore") track("ai_panel_open", { via });
+    };
+    const close = () => {
+      html.classList.remove("ask-open");
+      [launcher, topBtn].forEach((b) => b && b.setAttribute("aria-expanded", "false"));
+      session.set("ask-open", "0");
+      (doc.activeElement && panel.contains(doc.activeElement) ? launcher : null)?.focus();
+    };
+    launcher.addEventListener("click", () => open("launcher"));
+    if (topBtn) topBtn.addEventListener("click", () => (html.classList.contains("ask-open") ? close() : open("topbar")));
+    btnClose.addEventListener("click", close);
+    btnNew.addEventListener("click", () => { if (!busy) { showEmpty(); input.focus(); } });
+    panel.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+    if (session.get("ask-open") === "1" && !mobileMq.matches) open("restore");
+
+    const onInput = () => {
       const n = cpLen(input.value);
       count.textContent = `${n} / ${MAX_CHARS}`;
       count.classList.toggle("over", n > MAX_CHARS);
-    });
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) form.requestSubmit(); });
-
-    const render = (state, links) => {
-      out.replaceChildren();
-      const p = el("p", { class: `ask-answer ask-${state.kind}` }, state.text);
-      out.append(p);
-      if (links.length) {
-        out.append(el("p", { class: "ask-sub" }, "근거 단락"));
-        const ul = el("ul", { class: "ask-links" });
-        for (const l of links) {
-          const li = el("li");
-          const a = el("a", { href: l.url }, l.heading && l.heading !== "(도입)" ? `${l.title} › ${l.heading}` : l.title);
-          a.addEventListener("click", () => track("ai_link_click", {}));
-          li.append(a); ul.append(li);
-        }
-        out.append(ul);
-      }
-      if (state.answerId) {
-        const fb = el("div", { class: "ask-feedback", role: "group", "aria-label": "답변 평가" });
-        const send = async (rating, b) => {
-          fb.querySelectorAll("button").forEach((x) => { x.disabled = true; });
-          b.setAttribute("aria-pressed", "true");
-          track("ai_feedback", { rating });
-          try {
-            await fetch(`${cfg.endpoint}/feedback`, { method: "POST", headers: { "content-type": "application/json" },
-              body: JSON.stringify({ answer_id: state.answerId, rating }) });
-          } catch { /* 평가 실패는 조용히 */ }
-        };
-        const up = el("button", { type: "button", "aria-label": "도움이 됐어요" }, "👍");
-        const down = el("button", { type: "button", "aria-label": "도움이 안 됐어요" }, "👎");
-        up.addEventListener("click", () => send(1, up));
-        down.addEventListener("click", () => send(-1, down));
-        fb.append(up, down);
-        out.append(fb);
-      }
+      send.disabled = busy || !input.value.trim() || n > MAX_CHARS;
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 136) + "px";
     };
+    input.addEventListener("input", onInput);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit("enter"); }
+    });
+    form.addEventListener("submit", (e) => { e.preventDefault(); submit("button"); });
 
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
+    const scrollDown = () => { log.scrollTop = log.scrollHeight; };
+
+    function botMessage() {
+      const wrap = el("div", { class: "ask-msg bot is-streaming", "aria-busy": "true" });
+      const bubble = el("div", { class: "ask-bubble" });
+      const thinking = el("span", { class: "ask-thinking", "aria-hidden": "true" });
+      thinking.append(el("i"), el("i"), el("i"));
+      const text = el("span", { class: "ask-text" });
+      bubble.append(thinking, text);
+      const meta = el("div", { class: "ask-meta" }, "답변 생성 중 · 0초");
+      wrap.append(bubble, meta);
+      log.append(wrap);
+      const t0 = performance.now();
+      const tick = setInterval(() => {
+        meta.textContent = `${text.textContent ? "작성 중" : "답변 생성 중"} · ${Math.floor((performance.now() - t0) / 1000)}초`;
+      }, 250);
+      return {
+        set(t) { if (t) thinking.remove(); text.textContent = t; scrollDown(); },
+        finish(state, links) {
+          clearInterval(tick);
+          const ms = performance.now() - t0;
+          thinking.remove();
+          wrap.classList.remove("is-streaming");
+          wrap.setAttribute("aria-busy", "false");
+          if (state.kind !== "answered") wrap.classList.add(state.kind === "none" ? "is-none" : "is-error");
+          text.textContent = state.text;
+          meta.textContent = state.kind === "answered" ? `${formatSeconds(ms)} · 근거 ${links.length}개` : formatSeconds(ms);
+          if (links.length) {
+            const ul = el("ul", { class: "ask-sources", "aria-label": "근거 단락" });
+            for (const l of links) {
+              const a = el("a", { href: l.url }, l.heading && l.heading !== "(도입)" ? `${l.title} › ${l.heading}` : l.title);
+              a.addEventListener("click", () => track("ai_link_click", {}));
+              const li = el("li"); li.append(a); ul.append(li);
+            }
+            wrap.append(ul);
+          }
+          if (state.answerId) wrap.append(feedback(state.answerId));
+          announce.textContent = state.kind === "answered" ? "답변이 완성됐어요" : state.text;
+          scrollDown();
+          return ms;
+        },
+      };
+    }
+
+    function feedback(answerId) {
+      const fb = el("div", { class: "ask-feedback", role: "group", "aria-label": "답변 평가" });
+      const sendFb = async (rating, b) => {
+        fb.querySelectorAll("button").forEach((x) => { x.disabled = true; });
+        b.setAttribute("aria-pressed", "true");
+        track("ai_feedback", { rating });
+        try {
+          await fetch(`${cfg.endpoint}/feedback`, { method: "POST", headers: { "content-type": "application/json" },
+            body: JSON.stringify({ answer_id: answerId, rating }) });
+        } catch { /* 조용히 */ }
+      };
+      const up = el("button", { type: "button", "aria-label": "도움이 됐어요" }, "👍");
+      const down = el("button", { type: "button", "aria-label": "도움이 안 됐어요" }, "👎");
+      up.addEventListener("click", () => sendFb(1, up));
+      down.addEventListener("click", () => sendFb(-1, down));
+      fb.append(up, down);
+      return fb;
+    }
+
+    async function submit(via) {
       const q = input.value.trim();
-      if (!q) return input.focus();
-      if (cpLen(q) > MAX_CHARS) return render({ kind: "error", text: `질문은 ${MAX_CHARS}자까지 쓸 수 있어요.` }, []);
-      const ts = root.turnstile;
-      const token = ts && widgetId !== null ? ts.getResponse(widgetId) : "";
-      if (!token) return render({ kind: "error", text: "사람 확인이 끝나면 다시 눌러 주세요." }, []);
+      if (busy || !q || cpLen(q) > MAX_CHARS) return;
+      busy = true;
+      if (log.querySelector(".ask-welcome")) log.replaceChildren();
+      exBox.hidden = true;
+      log.append(el("div", { class: "ask-msg user" }, q));
+      input.value = ""; onInput();
+      const msg = botMessage();
+      scrollDown();
 
-      submit.disabled = true; submit.textContent = "답변 중…";
-      out.replaceChildren(el("p", { class: "ask-sub" }, "블로그 글에서 찾는 중이에요…"));
-      let state, links = [];
+      let state = null;
+      let links = [];
       try {
+        await ensureHuman();
+        const token = await waitToken(8000);
+        if (!token) throw new Error("human");
         const r = await fetch(`${cfg.endpoint}/ask`, {
-          method: "POST", headers: { "content-type": "application/json" },
+          method: "POST", headers: { "content-type": "application/json", accept: "text/event-stream" },
           body: JSON.stringify(buildRequest(q, token, readConsent(storage), location.pathname)),
         });
-        let body = null;
-        try { body = await r.json(); } catch { /* 빈 본문 */ }
-        state = interpret(r.status, body);
-        if (state.kind === "answered") links = safeLinks(body.links, cfg.siteUrl);
-      } catch {
-        state = interpret(0, null);
+        const type = r.headers.get("content-type") || "";
+        if (!r.ok || !type.startsWith("text/event-stream") || !r.body) {
+          let body = null;
+          try { body = await r.json(); } catch { /* 빈 본문 */ }
+          state = interpret(r.status, body);
+        } else {
+          const reader = r.body.getReader();
+          const dec = new TextDecoder();
+          let buf = "";
+          for (;;) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            const parsed = parseSSE(buf + dec.decode(value, { stream: true }));
+            buf = parsed.rest;
+            for (const ev of parsed.events) {
+              if (ev.event === "delta" && typeof ev.data.text === "string") msg.set(ev.data.text);
+              else if (ev.event === "done") {
+                state = interpret(200, ev.data);
+                if (state.kind === "answered") links = safeLinks(ev.data.links, cfg.siteUrl);
+              } else if (ev.event === "error") state = interpret(500, ev.data);
+            }
+          }
+          if (!state) state = { kind: "error", text: ERROR_TEXT, answerId: null };
+        }
+      } catch (e) {
+        state = e && e.message === "human"
+          ? { kind: "error", text: "사람 확인을 마치지 못했어요. 아래 확인 상자가 보이면 눌러 주세요.", answerId: null }
+          : { kind: "error", text: ERROR_TEXT, answerId: null };
       } finally {
-        submit.disabled = false; submit.textContent = "질문";
-        if (ts && widgetId !== null) ts.reset(widgetId);   // 토큰은 1회용
+        if (root.turnstile && widgetId !== null) root.turnstile.reset(widgetId);   // 토큰은 1회용
       }
-      render(state, links);
-      track("ai_ask", { result: state.kind, q_len: lenBucket(cpLen(q)), consent: readConsent(storage) ? "yes" : "no" });
-    });
+      const ms = msg.finish(state, links);
+      busy = false; onInput();
+      if (!mobileMq.matches) input.focus();
+      track("ai_ask", { result: state.kind, q_len: lenBucket(cpLen(q)), seconds: Math.round(ms / 1000),
+                        consent: readConsent(storage) ? "yes" : "no", via });
+    }
   }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
-  else init();
+  /* defer 스크립트는 DOMContentLoaded 직전에 실행돼서 상단 바(.site-tools)가 아직 없다(2026-11-09 버그: 버튼이 안 생김).
+     DOMContentLoaded 이후, 다른 초기화가 끝난 뒤(setTimeout 0)에 시작한다. */
+  const start = () => setTimeout(init, 0);
+  if (document.readyState === "complete") start();
+  else document.addEventListener("DOMContentLoaded", start, { once: true });
 })(typeof window !== "undefined" ? window : globalThis);
