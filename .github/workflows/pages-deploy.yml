@@ -55,6 +55,12 @@ jobs:
           JEKYLL_ENV: "production"
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
 
+      - name: Build AI block DB
+        # 블로그 AI가 읽는 블록 DB(assets/data/blocks.json). 표준 라이브러리만 쓰는 스크립트, 외부 호출 없음
+        run: python3 tools/build_blocks.py "_site${BASE_PATH}"
+        env:
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+
       - name: Test site
         run: |
           bundle exec htmlproofer _site \
