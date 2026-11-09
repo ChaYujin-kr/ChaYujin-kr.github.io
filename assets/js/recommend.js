@@ -85,20 +85,20 @@
     const close = el("button", { type: "button", class: "rec-close", "aria-label": "닫기" }, "×");
     head.append(close);
     const main = el("a", { class: "rec-primary", href: rec.primary.post.url });
-    main.append(el("span", { class: "rec-reason" }, rec.primary.reason), el("span", { class: "rec-title" }, rec.primary.post.title));
+    main.append(el("span", { class: "rec-title" }, rec.primary.post.title));   // 제목만(2026-11-10 요청)
     main.addEventListener("click", () => track("rec_click", { type: rec.primary.reason === "시리즈 다음 편" ? "series_next" : "primary" }));
     card.append(head, main);
     if (rec.more.length) {
       const ul = el("ul", { class: "rec-more", "aria-label": "이런 글은 어때요" });
       for (const m of rec.more) {
         const a = el("a", { href: m.post.url });
-        a.append(el("span", { class: "rec-title" }, m.post.title), el("span", { class: "rec-reason" }, m.reason));
+        a.append(el("span", { class: "rec-title" }, m.post.title));
         a.addEventListener("click", () => track("rec_click", { type: "related" }));
         const li = el("li"); li.append(a); ul.append(li);
       }
       card.append(ul);
     }
-    const list = el("a", { class: "rec-list", href: cfg.listUrl || "/" }, cfg.listLabel || "목록으로");
+    const list = el("a", { class: "rec-list", href: cfg.listUrl || "/" }, "목록으로");
     list.addEventListener("click", () => track("rec_click", { type: "list" }));
     card.append(list);
     const dismiss = () => { card.classList.remove("is-in"); setTimeout(() => card.remove(), 250); track("rec_dismiss", {}); };

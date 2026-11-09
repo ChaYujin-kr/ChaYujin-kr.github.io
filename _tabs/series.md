@@ -14,6 +14,15 @@ order: 1
 1. [{{ post.title }}]({{ post.url | relative_url }}) <small>— {{ post.description }}</small>
 {%- endfor %}
 
+{% assign llmops = site.posts | where: "series", "llmops-assistant" | sort: "date" %}
+## LLMOps 구축기
+
+블로그 글만 근거로 답하는 AI 비서를 보안 원칙부터 세우고, Cloudflare Workers와 OpenAI로 배포·운영한 기록.
+
+{% for post in llmops %}
+1. [{{ post.title }}]({{ post.url | relative_url }}) <small>— {{ post.description }}</small>
+{%- endfor %}
+
 {% assign notes = site.posts | where_exp: "p", "p.categories[1] == '실습 노트'" | sort: "date" %}
 {% if notes.size > 0 %}
 ## 실습 노트

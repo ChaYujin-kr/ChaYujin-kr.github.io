@@ -193,7 +193,16 @@ html.ask-open .ask-panel { transform: none; visibility: visible; transition: tra
 /* 첫 화면 가운데 봇: 검정 둥근 배지 안에 은색 봇 */
 .ask-welcome .ask-badge {
   display: inline-flex; align-items: center; justify-content: center; width: 72px; height: 72px; border-radius: 22px;
-  background: var(--ask-grad); border: 1px solid var(--ask-rim);
+  background: var(--ask-grad); border: 0;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 6px 16px rgba(0, 0, 0, .25);
 }
+/* 환영 문구: 메탈릭(은색) 그라데이션 글자. 라이트는 어두운 강철, 다크는 밝은 은색 */
+.ask-welcome h3 {
+  background: linear-gradient(100deg, #24272c 0%, #6d757f 38%, #2c3036 62%, #59606a 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 600;
+}
+:root[data-bs-theme="dark"] .ask-welcome h3 {
+  background-image: linear-gradient(100deg, #9aa1aa 0%, #f4f6f8 38%, #a7aeb7 62%, #e3e7eb 100%);
+}
+@media (forced-colors: active) { .ask-welcome h3 { color: CanvasText; background: none; } }
 .ask-welcome .ask-badge svg { width: 40px; height: 40px; }

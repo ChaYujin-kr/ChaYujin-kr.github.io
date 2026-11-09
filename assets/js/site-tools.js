@@ -92,7 +92,9 @@
     topbar.prepend(b);
   }
 
-  /* ── 다크/라이트: 아이콘 하나, 누르면 바로 전환. Chirpy 기본 3단 메뉴(라이트/다크/시스템)는 CSS로 숨김 ── */
+  /* ── 다크/라이트: 사이드바 아래 아이콘 하나. 기본은 시스템 설정을 따르고, 아이콘은 "누르면 바뀔 모드"
+        (다크일 때 ☀, 라이트일 때 ☾). 수동으로 고른 값이 시스템과 같아지면 저장을 지우고 다시 시스템을 따른다.
+        Chirpy 기본 3단 메뉴(라이트/다크/시스템)는 CSS로 숨김 ── */
   function themeToggle() {
     const b = iconBtn("fa-moon", "다크 모드로", { class: "theme-btn" });
     const isDark = () => html.getAttribute("data-bs-theme") === "dark"
@@ -105,7 +107,8 @@
     };
     b.addEventListener("click", () => {
       const next = isDark() ? "light" : "dark";
-      if (root.Theme && typeof root.Theme.update === "function") root.Theme.update(next);
+      const sys = root.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      if (root.Theme && typeof root.Theme.update === "function") root.Theme.update(next === sys ? "system" : next);
       else { html.setAttribute("data-bs-theme", next); store.set("theme", next); }
       sync();
       track("theme_toggle", { mode: next });
@@ -117,6 +120,8 @@
 
   function init() {
     sidebarToggle();
+    const sbBottom = doc.querySelector("#sidebar .sidebar-bottom");
+    if (sbBottom) sbBottom.prepend(themeToggle());
     const anchor = doc.getElementById("search-trigger");
     const main = doc.querySelector("main");
     if (!anchor || !main) return;
@@ -267,7 +272,7 @@
       root.addEventListener("pagehide", () => synth.cancel());
     }
 
-    tools.append(themeToggle(), status);
+    tools.append(status);
     anchor.before(tools);
 
     /* 이전 선택 언어 자동 번역(모델이 이미 있을 때만), 처음이면 브라우저 언어 보고 한 번만 제안 */
