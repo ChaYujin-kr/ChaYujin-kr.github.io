@@ -47,7 +47,11 @@ html h1, html h2, html h3 { letter-spacing: -0.015em; }
   --bs-link-color: var(--cl-accent); --bs-link-color-rgb: 107, 79, 52; --bs-link-hover-color: var(--cl-fill-2);
   --bs-link-hover-color-rgb: 74, 55, 39;
 }
-:root[data-bs-theme=dark] {
+/* 대표 이미지(구성도)는 다크판이 기본 → 라이트 모드에서는 라이트판으로 바꿔 보여 준다 */
+html:not([data-bs-theme=dark]) img[src$="/llmops-arch-dark.svg"] { content: url("/assets/img/posts/llmops-arch.svg"); }
+html:not([data-bs-theme=dark]) img[src$="/llmops-pipeline-dark.svg"] { content: url("/assets/img/posts/llmops-pipeline.svg"); }
+
+html:root[data-bs-theme=dark] {   /* html:root = 테마 기본값(:root[...])보다 한 단계 높은 우선순위 */
   /* 다크: Cloudflare 대시보드 참고 — 거의 검정 바탕, 밝은 파랑 링크, 오렌지 포인트.
      링크 #6cb2ff는 #0c0c0e 배경에서 9.0:1, 오렌지 #ff9a3d는 9.4:1 */
   --cl-accent: #6cb2ff; --cl-accent-2: #ff9a3d; --cl-fill: #2f7cf6; --cl-fill-2: #4d90f8; --cl-on-fill: #ffffff;
@@ -57,6 +61,9 @@ html h1, html h2, html h3 { letter-spacing: -0.015em; }
   --bs-link-hover-color-rgb: 156, 203, 255;
   --main-bg: #0c0c0e; --sidebar-bg: #0c0c0e; --topbar-bg: rgba(12, 12, 14, .82); --card-bg: #151518;
   --main-border-color: #26262b; --sidebar-border-color: #1f1f23; --border-color: #26262b;
+  --sidebar-hover-bg: #17171b; --sidebar-btn-bg: #151518; --menu-bg: #151518; --card-header-bg: #151518;
+  --button-bg: #151518; --btn-border-color: #26262b; --search-border-color: #2a2a2f; --mask-bg: #2a2a2f;
+  --img-bg: #0c0c0e; --post-list-text-color: #c9cdd2; --site-title-color: #d6d9dd; --blockquote-text-color: #a3a8b0;
   /* 본문은 고대비, 주변부는 한 단계 낮춤 */
   --text-color: #e9ebee; --heading-color: #ffffff; --text-muted-color: #8b9099;
 }
