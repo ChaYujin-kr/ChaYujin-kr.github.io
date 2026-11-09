@@ -178,7 +178,7 @@
     /* 상단 바 버튼(있으면) */
     const tools = doc.querySelector(".site-tools");
     let topBtn = null;
-    if (tools) {
+    if (tools && false) {   // 상단 바 버튼은 쓰지 않음(2026-11-10): 번역·듣기·검색만 둔다
       topBtn = el("button", { type: "button", "aria-controls": "ask-panel", "aria-expanded": "false", "aria-label": "AI에게 질문하기" });
       topBtn.innerHTML = '<i class="fas fa-comments" aria-hidden="true"></i><span class="tool-label">질문하기</span>';
       tools.insertBefore(topBtn, tools.querySelector(".tool-status"));

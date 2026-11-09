@@ -139,7 +139,7 @@ html .btn-close { --bs-btn-close-focus-shadow: 0 0 0 .25rem rgba(var(--cl-ring),
 .site-tools button:hover { border-color: var(--cl-accent); }
 .site-tools button.is-on { background: var(--cl-fill); border-color: var(--cl-fill); color: var(--cl-on-fill); }
 .site-tools .lang-btn .lang-code { letter-spacing: .04em; }
-.site-tools .tool-status { font-size: .75rem; color: var(--text-muted-color); white-space: nowrap; }
+.site-tools .tool-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 @media (max-width: 575.98px) { .site-tools .tool-status { display: none; } .site-tools { gap: .2rem; } }
 .site-menu {
   position: absolute; z-index: 1130; top: calc(100% + 6px); right: 0; min-width: 9.5rem;

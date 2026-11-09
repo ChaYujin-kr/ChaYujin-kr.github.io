@@ -37,7 +37,7 @@ Chirpy head 확장 지점
 <!-- Google Tag Manager: GA4 태그는 GTM 컨테이너 안에서 설정 (_gtm/README.md) -->
 <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','GTM-MJMC3GPS');</script>
 {%- endif %}
-<link rel="stylesheet" href="{{ '/assets/css/custom.css' | relative_url }}">
+<link rel="stylesheet" href="{{ '/assets/css/custom.css' | relative_url }}?v={{ site.time | date: '%s' }}">
 <style>
   .series-nav { border: 1px solid var(--main-border-color, #d0d7de); border-radius: 8px; padding: .65rem 1rem; margin: 0 0 1rem; }
   .series-nav summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; align-items: center; gap: .5rem; }
@@ -118,9 +118,9 @@ document.addEventListener("DOMContentLoaded", () => {
   window.BLOG_REC = { index: {{ '/assets/data/posts.json' | relative_url | jsonify }},
                       listUrl: {{ rec_list_url | jsonify }}, listLabel: {{ rec_list_label | jsonify }} };
 </script>
-<script src="{{ '/assets/js/recommend.js' | relative_url }}" defer></script>
+<script src="{{ '/assets/js/recommend.js' | relative_url }}?v={{ site.time | date: '%s' }}" defer></script>
 {%- endif %}
-<script src="{{ '/assets/js/site-tools.js' | relative_url }}" defer></script>
+<script src="{{ '/assets/js/site-tools.js' | relative_url }}?v={{ site.time | date: '%s' }}" defer></script>
 <script>
 /* 사용자 행동 이벤트 → dataLayer (GTM에서 GA4로 전달) */
 document.addEventListener("DOMContentLoaded", () => {
@@ -153,14 +153,14 @@ document.addEventListener("DOMContentLoaded", () => {
 {%- if jekyll.environment != "production" -%}{%- assign ask_on = true -%}{%- endif -%}
 {%- if ask.endpoint == nil or ask.endpoint == "" -%}{%- assign ask_on = false -%}{%- endif -%}
 {%- if ask_on %}
-<link rel="stylesheet" href="{{ '/assets/css/ask.css' | relative_url }}">
+<link rel="stylesheet" href="{{ '/assets/css/ask.css' | relative_url }}?v={{ site.time | date: '%s' }}">
 <script>
   /* AI 질문 사이드바 설정 (공개 값만: 주소, Turnstile 사이트 키, 예시 질문) */
   window.BLOG_ASK = { endpoint: {{ ask.endpoint | jsonify }}, sitekey: {{ ask.turnstile_sitekey | jsonify }},
                       siteUrl: {{ site.url | jsonify }}, privacyUrl: {{ '/privacy/' | relative_url | jsonify }},
                       examples: {{ ask.examples | jsonify }} };
 </script>
-<script src="{{ '/assets/js/ask.js' | relative_url }}" defer></script>
+<script src="{{ '/assets/js/ask.js' | relative_url }}?v={{ site.time | date: '%s' }}" defer></script>
 {%- endif %}
 {%- if jekyll.environment == "production" %}
 <script>
