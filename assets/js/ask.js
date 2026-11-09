@@ -35,9 +35,20 @@
     catch { return false; }
   }
 
-  function buildRequest(question, token, consent, path) {
+  /** 이전 대화 최근 3턴(질문 300자, 답 600자). 답하지 못한 턴은 답을 비운다. 서버가 다시 자르고 가린다. */
+  function recentTurns(history) {
+    if (!Array.isArray(history)) return [];
+    return history.slice(-3).filter((h) => h && typeof h.q === "string").map((h) => ({
+      q: Array.from(h.q).slice(0, 300).join(""),
+      a: h.kind === "answered" && typeof h.text === "string" ? Array.from(h.text).slice(0, 600).join("") : "",
+    }));
+  }
+
+  function buildRequest(question, token, consent, path, history) {
+    const turns = recentTurns(history);
     return { question: question.trim(), turnstile_token: token, consent_logging: consent, stream: true,
-             page: typeof path === "string" && path.startsWith("/") ? path.slice(0, 200) : undefined };
+             page: typeof path === "string" && path.startsWith("/") ? path.slice(0, 200) : undefined,
+             ...(turns.length ? { history: turns } : {}) };
   }
 
   const lenBucket = (n) => (n <= 50 ? "<=50" : n <= 100 ? "<=100" : n <= 200 ? "<=200" : "<=500");
@@ -73,7 +84,7 @@
     return { events, rest };
   }
 
-  const core = { MAX_CHARS, cpLen, safeLinks, readConsent, buildRequest, lenBucket, formatSeconds, interpret, parseSSE };
+  const core = { MAX_CHARS, cpLen, safeLinks, readConsent, buildRequest, recentTurns, lenBucket, formatSeconds, interpret, parseSSE };
   if (typeof module !== "undefined" && module.exports) { module.exports = core; return; }
   root.BlogAskCore = core;
 
@@ -350,7 +361,7 @@
         if (!token) throw new Error("human");
         const r = await fetch(`${cfg.endpoint}/ask`, {
           method: "POST", headers: { "content-type": "application/json", accept: "text/event-stream" },
-          body: JSON.stringify(buildRequest(q, token, readConsent(storage), location.pathname)),
+          body: JSON.stringify(buildRequest(q, token, readConsent(storage), location.pathname, history)),
         });
         const type = r.headers.get("content-type") || "";
         if (!r.ok || !type.startsWith("text/event-stream") || !r.body) {

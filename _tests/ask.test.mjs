@@ -62,3 +62,15 @@ test("parseSSE: 조각이 잘려 와도 완성된 이벤트만, 깨진 건 버�
 test("formatSeconds: 10초 미만은 소수 한 자리", () => {
   assert.deepEqual([340, 3400, 12600].map(core.formatSeconds), ["0.3초", "3.4초", "13초"]);
 });
+
+test("이전 대화: 최근 3턴만, 답하지 못한 턴은 답 비움, 길이 자름, 없으면 history 키 자체를 안 보냄", () => {
+  const h = [{ q: "1", kind: "answered", text: "a" }, { q: "2", kind: "none", text: "못 찾음" },
+             { q: "3", kind: "answered", text: "가".repeat(700) }, { q: "4", kind: "error", text: "오류" }];
+  const t = core.recentTurns(h);
+  assert.deepEqual(t.map((x) => x.q), ["2", "3", "4"]);
+  assert.equal(t[0].a, "");
+  assert.equal(t[1].a.length, 600);
+  assert.equal(t[2].a, "");
+  assert.equal("history" in core.buildRequest("q", "t", false, "/"), false);
+  assert.equal(core.buildRequest("q", "t", false, "/", h).history.length, 3);
+});
