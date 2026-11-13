@@ -24,7 +24,7 @@
 <nav class="post-navigation post-nav3" aria-label="글 이동">
   {%- if prev_post.url %}
   <a href="{{ prev_post.url | relative_url }}" class="btn btn-outline-primary nav-prev">
-    <span class="nav-label">이전 글</span><span class="nav-title">{{ prev_post.title }}</span>
+    <span class="nav-label">이전 글</span><span class="nav-title" title="{{ prev_post.title | escape }}">{{ prev_post.title }}</span>
   </a>
   {%- else %}
   <span class="btn btn-outline-primary disabled nav-prev" aria-disabled="true"><span class="nav-label">이전 글</span><span class="nav-title">첫 글이에요</span></span>
@@ -34,7 +34,7 @@
   </a>
   {%- if next_post.url %}
   <a href="{{ next_post.url | relative_url }}" class="btn btn-outline-primary nav-next">
-    <span class="nav-label">다음 글</span><span class="nav-title">{{ next_post.title }}</span>
+    <span class="nav-label">다음 글</span><span class="nav-title" title="{{ next_post.title | escape }}">{{ next_post.title }}</span>
   </a>
   {%- else %}
   <span class="btn btn-outline-primary disabled nav-next" aria-disabled="true"><span class="nav-label">다음 글</span><span class="nav-title">마지막 글이에요</span></span>

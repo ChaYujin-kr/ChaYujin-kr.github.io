@@ -4,6 +4,7 @@
  * - 댓글: Google 로그인 뒤 쓰기·답글(한 단계)·좋아요·신고·내 글 삭제. 읽기는 누구나.
  *   Google 스크립트는 "Google로 로그인"을 누를 때만 불러온다(누르기 전에는 Google로 아무것도 가지 않음).
  *   로그인 상태는 이 탭에서만 기억(sessionStorage "cm-session", 24시간짜리 서버 서명 토큰).
+ *   로그아웃·전체 삭제 버튼은 두지 않는다(2026-11-13 사용자 결정). 탭을 닫으면 로그아웃되고, 댓글은 하나씩 지운다.
  * - 남이 쓴 글자는 textContent로만 그린다(innerHTML 없음, 링크 없음).
  * - 좋아요를 누르면 팡 효과(site-tools.js blogBurst).
  * 설정: window.BLOG_COMMUNITY = { endpoint, googleClientId, privacyUrl }  (_data/community.yml)
@@ -237,22 +238,11 @@
       authBox.append(start, slot, hint);
       return;
     }
-    const who = el("div", { class: "cm-who" });
-    who.append(el("span", null, `${session.name} 님으로 로그인됨`));
-    const out = el("button", { type: "button", class: "cm-link" }, "로그아웃");
-    out.addEventListener("click", () => { setSession(null); renderAuth(); load(); });
-    const bye = el("button", { type: "button", class: "cm-link" }, "내 댓글·계정 모두 지우기");
-    bye.addEventListener("click", async () => {
-      if (!root.confirm("이 블로그에 남긴 내 댓글, 좋아요, 신고, 계정 정보를 모두 지워요. 되돌릴 수 없어요. 계속할까요?")) return;
-      const r = await api("DELETE", "/me");
-      if (r.ok) { setSession(null); renderAuth(); load(); say("모두 지웠어요."); } else say(errText(r));
-    });
-    who.append(out, bye);
     const { form } = miniForm({
       label: "댓글", placeholder: "댓글 쓰기 (개인정보 제외, 1000자 이내)", max: MAX_CHARS, submit: "등록", withName: true,
       onSubmit: (text, name) => post(text, null, name),
     });
-    authBox.append(who, form);
+    authBox.append(form);
   }
 
   async function post(text, parentId, name) {

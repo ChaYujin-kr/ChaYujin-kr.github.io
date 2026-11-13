@@ -470,7 +470,7 @@
           if (ok.disabled) return;
           ok.disabled = true; note.textContent = "";
           if (await post(buildFeedback(answerId, rating, ta.value, startedAt))) {
-            box.replaceWith(el("p", { class: "ask-fb-done", role: "status" }, "의견 고마워요."));
+            box.replaceWith(el("p", { class: "ask-fb-done", role: "status" }, "의견 감사합니다."));
           } else { note.textContent = "보내지 못했어요. 다시 시도해 주세요."; ok.disabled = false; }
         });
         return box;
