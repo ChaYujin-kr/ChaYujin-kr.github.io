@@ -112,7 +112,7 @@ html.ask-open .ask-panel { transform: none; visibility: visible; transition: tra
 .ask-sources a:hover { border-color: var(--ask-accent); text-decoration: underline; text-underline-offset: 3px; }
 .ask-feedback { margin-top: .4rem; }
 .ask-fb-row { display: flex; align-items: center; gap: .45rem; }
-/* 평가 버튼: 테두리 없이 살짝 떠 있는 입체 버튼. 고르면 트로피칼 오렌지(빨강→주황→노랑)가 가운데에서 차오르고 반짝인다. */
+/* 평가 버튼: 테두리 없이 살짝 떠 있는 입체 버튼. 고르면 색이 가운데에서 차오르고 반짝인다(👍 오렌지, 👎 파랑→보라: 아래 DAY / NIGHT). */
 .ask-fb-row button {
   position: relative; isolation: isolate; font: inherit; font-size: .95rem; line-height: 1; cursor: pointer;
   width: 2.5rem; height: 2.1rem; padding: 0; border: 0; border-radius: 999px; color: var(--ask-fg);
@@ -141,6 +141,13 @@ html.ask-open .ask-panel { transform: none; visibility: visible; transition: tra
 .ask-fb-row button[aria-pressed="true"] { box-shadow: 0 2px 5px rgba(255, 98, 0, .38), 0 6px 16px rgba(255, 140, 0, .3); }
 .ask-fb-row button[aria-pressed="true"]::before { transform: scale(1); opacity: 1; }
 .ask-fb-row button[aria-pressed="true"]::after { opacity: 1; animation: ask-fb-shine 3.2s ease-in-out .25s infinite, ask-fb-twinkle 1.6s ease-in-out infinite; }
+/* DAY / NIGHT: 👍는 트로피칼 오렌지(낮), 👎는 파랑→보라(밤하늘). 반짝이는 같은 방식 */
+.ask-fb-row button.is-down { --fx-c1: #5b8cff; --fx-c2: #c77dff; }
+.ask-fb-row button.is-down::before {
+  background: linear-gradient(135deg, #2563ff 0%, #4f5bf5 40%, #7c4dff 72%, #c77dff 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), inset 0 -3px 5px rgba(38, 18, 120, .45);
+}
+.ask-fb-row button.is-down[aria-pressed="true"] { box-shadow: 0 2px 5px rgba(72, 88, 255, .42), 0 6px 16px rgba(124, 77, 255, .32); }
 @keyframes ask-fb-shine { 0% { background-position: 0 0, 0 0, 0 0, 180% 0; } 28%, 100% { background-position: 0 0, 0 0, 0 0, -80% 0; } }
 @keyframes ask-fb-twinkle { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
 /* 다크: 안 고른 버튼의 윗면 하이라이트를 약하게(밝은 테두리처럼 보이지 않게) */

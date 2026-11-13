@@ -444,8 +444,8 @@
       const slot = el("div", { class: "ask-fb-slot" });
       const post = (body) => fetch(`${cfg.endpoint}/feedback`, { method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify(body) }).then((r) => r.ok, () => false);
-      const up = el("button", { type: "button" }, "👍");
-      const down = el("button", { type: "button" }, "👎");
+      const up = el("button", { type: "button", class: "is-up" }, "👍");
+      const down = el("button", { type: "button", class: "is-down" }, "👎");
       const LABEL = new Map([[up, "도움이 됐어요"], [down, "도움이 안 됐어요"]]);
       let current = rated === 1 || rated === -1 ? rated : 0;
       let editing = false;
