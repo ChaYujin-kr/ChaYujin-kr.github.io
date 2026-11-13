@@ -6,4 +6,4 @@ endpoint: "https://blog-assistant-community.chauujjiinn.workers.dev"
 # Google OAuth 클라이언트 ID(공개 값, "승인된 JavaScript 원본"에 https://chayujin-kr.github.io 등록).
 # 비어 있으면 글 좋아요만 보이고 댓글 영역은 만들지 않는다. 게이트웨이의 GOOGLE_CLIENT_ID와 같은 값.
 # 댓글을 켤 때는 _config.yml의 comments.provider(utterances)를 비워 댓글 창이 두 개가 되지 않게 한다.
-google_client_id: ""
+google_client_id: "869793719099-hck8hc2c3gt067d5lspgfhegvjhntigp.apps.googleusercontent.com"
