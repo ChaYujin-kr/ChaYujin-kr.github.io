@@ -105,9 +105,9 @@ test("buildFeedback: 의견이 비면 null, 1000자로 자름, 평가는 1/-1만
   assert.equal(Array.from(core.buildFeedback("id", 1, "가".repeat(1500), null).comment).length, core.FB_MAX);
   assert.equal(core.buildFeedback("id", 5, "x", 7).rating, -1);
   assert.equal(core.buildFeedback("id", 1, "x", 7).entered_at, null);
-  // 수정: 글은 의견이 아니라 수정 사유로, 처음 의견을 덮지 않게 comment는 null
-  assert.deepEqual(core.buildFeedback("id", 1, " 다시 보니 맞아요 ", null, true),
-                   { answer_id: "id", rating: 1, comment: null, entered_at: null, edited: true, edit_reason: "다시 보니 맞아요" });
-  assert.equal(core.buildFeedback("id", -1, null, null, true).edit_reason, null);
-  assert.equal("edited" in core.buildFeedback("id", 1, "x", null), false);
+  // 피드백 UID: 평가와 뒤따르는 의견이 같은 행에 붙도록 같은 값을 보냄. 없으면 키 자체를 안 보냄(서버가 만듦)
+  assert.equal(core.buildFeedback("id", 1, "x", null, "fid-1").feedback_id, "fid-1");
+  assert.equal("feedback_id" in core.buildFeedback("id", 1, "x", null), false);
+  assert.equal("feedback_id" in core.buildFeedback("id", 1, "x", null, ""), false);
+  assert.deepEqual(core.buildCancel("id"), { answer_id: "id", cancel: true });   // 취소는 평가 없이
 });

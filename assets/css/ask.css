@@ -155,7 +155,6 @@ html.ask-open .ask-panel { transform: none; visibility: visible; transition: tra
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), inset 0 -2px 0 rgba(0, 0, 0, .3), 0 1px 2px rgba(0, 0, 0, .5), 0 3px 8px rgba(0, 0, 0, .35); }
 .ask-fb-hint { font-size: .75rem; color: var(--ask-muted); }
 .ask-fb-hint:empty { display: none; }
-.ask-fb-title { margin: 0 0 .25rem; font-size: .75rem; font-weight: 600; color: var(--ask-muted); }
 /* 의견 칸(선택): 오른쪽 위 X로 닫는다 */
 .ask-fb-form { position: relative; width: 19rem; max-width: 100%; margin-top: .45rem; padding: .5rem .6rem .4rem; border: 1px solid var(--ask-border);
   border-radius: 14px; background: var(--ask-bg); }

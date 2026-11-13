@@ -4,7 +4,7 @@
  * - 답변은 생성되는 대로 보여준다(서버 SSE). 서버가 출력 가드를 거친 "지금까지의 안전한 전체 글"을 보내고,
  *   끝나면 인용 확인을 마친 최종 답으로 바꾼다(인용이 없으면 "찾지 못했어요").
  * - 답마다 👍/👎(답을 못 찾았을 때도). 누르면 고른 것만 남고, 의견(선택, 1000자)을 써서 보낼 수 있다. X로 닫으면 의견은 NULL.
- *   고른 버튼을 다시 누르면 평가를 바꿀 수 있고, 수정 사유(선택)를 따로 받는다.
+ *   고른 버튼을 다시 누르면 그 평가를 취소하고(서버에 취소일시), 다시 고르면 새 피드백으로 보낸다.
  * - 글은 textContent로만 넣는다. 링크는 블로그 글 주소(/posts/)만 <a>로 만든다.
  * - 봇 확인(Turnstile)은 사이드바를 처음 열 때만 불러오고, 필요할 때만 보인다(interaction-only).
  * - GA4로는 질문 내용을 보내지 않는다(결과 유형·글자 수 구간·걸린 시간만).
@@ -120,13 +120,15 @@
   const formatSeconds = (ms) => (ms < 10000 ? (ms / 1000).toFixed(1) : String(Math.round(ms / 1000))) + "초";
 
   /** 평가 요청 본문. 의견이 비면 null(DB에 NULL), 1000자로 자른다. 입력일시는 ISO 문자열 또는 null.
-   *  edited가 참이면 평가를 바꾼 것: 글은 의견이 아니라 수정 사유(edit_reason)로 보낸다(처음 의견은 서버에 그대로 남음). */
-  function buildFeedback(answerId, rating, comment, enteredAt, edited) {
+   *  feedbackId: 이 피드백의 UID. 평가를 누를 때 만들고, 뒤따르는 의견도 같은 값으로 보내 같은 행에 붙인다. */
+  function buildFeedback(answerId, rating, comment, enteredAt, feedbackId) {
     const c = typeof comment === "string" ? Array.from(comment.trim()).slice(0, FB_MAX).join("") : "";
-    const base = { answer_id: answerId, rating: rating === 1 ? 1 : -1, comment: edited ? null : (c || null),
-                   entered_at: typeof enteredAt === "string" ? enteredAt : null };
-    return edited ? { ...base, edited: true, edit_reason: c || null } : base;
+    return { answer_id: answerId, rating: rating === 1 ? 1 : -1, comment: c || null,
+             entered_at: typeof enteredAt === "string" ? enteredAt : null,
+             ...(typeof feedbackId === "string" && feedbackId ? { feedback_id: feedbackId } : {}) };
   }
+  /** 평가 취소 요청(고른 평가를 다시 누름). 서버는 그 행에 취소일시만 남긴다. */
+  const buildCancel = (answerId) => ({ answer_id: answerId, cancel: true });
 
   /** 스트리밍이 아닌 응답(오류 JSON 등) 해석. */
   function interpret(status, body) {
@@ -158,7 +160,7 @@
     return { events, rest };
   }
 
-  const core = { MAX_CHARS, FB_MAX, cpLen, safeLinks, readConsent, buildRequest, buildFeedback, recentTurns, parseRich, autoBullet, continueList, lenBucket, formatSeconds, interpret, parseSSE };
+  const core = { MAX_CHARS, FB_MAX, cpLen, safeLinks, readConsent, buildRequest, buildFeedback, buildCancel, recentTurns, parseRich, autoBullet, continueList, lenBucket, formatSeconds, interpret, parseSSE };
   if (typeof module !== "undefined" && module.exports) { module.exports = core; return; }
   root.BlogAskCore = core;
 
@@ -435,7 +437,8 @@
 
     /* 평가: 👍/👎 중 하나를 누르면 팡 터지며(site-tools.js blogBurst) 색이 채워지고 고른 버튼만 남는다. 평가는 바로 보내고
        (의견 NULL), 이어서 의견 칸이 열린다. 의견은 선택: 보내면 같은 답의 행에 덧붙고, X로 닫으면 NULL로 남는다.
-       고른 버튼을 다시 누르면 수정: 두 버튼이 다시 나오고, 고르면 수정 사유 칸(선택)이 열린다.
+       고른 버튼을 다시 누르면 그 평가를 취소한다(서버에는 취소일시만 남음): 두 버튼이 안 고른 모습으로 다시 나오고,
+       새로 고르면 새 피드백(새 feedback_id, 새 행)으로 보낸다.
        rated: 이미 고른 값(대화 복원 때). onRate: 고른 값을 대화 기록에 남기는 콜백. */
     function feedback(answerId, rated, onRate) {
       const fb = el("div", { class: "ask-feedback", role: "group", "aria-label": "답변 평가" });
@@ -448,27 +451,26 @@
       const down = el("button", { type: "button", class: "is-down" }, "👎");
       const LABEL = new Map([[up, "도움이 됐어요"], [down, "도움이 안 됐어요"]]);
       let current = rated === 1 || rated === -1 ? rated : 0;
-      let editing = false;
+      let editing = false;   // 취소하고 다시 고르는 중(안내 문구만 달라진다)
+      const newFid = () => (root.crypto && typeof root.crypto.randomUUID === "function" ? root.crypto.randomUUID() : "");
 
       const paint = () => {
         row.replaceChildren();
         for (const [b, r] of [[up, 1], [down, -1]]) {
-          const on = current === r && !editing;   // 수정 중에는 이전 선택을 표시하지 않는다(둘 다 안 고른 모습)
+          const on = current === r;
           b.setAttribute("aria-pressed", String(on));
-          const label = LABEL.get(b) + (on ? " (다시 누르면 평가 수정)" : "");
+          const label = LABEL.get(b) + (on ? " (다시 누르면 평가 취소)" : "");
           b.setAttribute("aria-label", label); b.title = label;
-          if (!current || editing || on) row.append(b);
+          if (!current || on) row.append(b);
         }
-        hint.textContent = editing ? "바꿀 평가를 골라 주세요" : "";
+        hint.textContent = editing && !current ? "평가를 취소했어요. 다시 고를 수 있어요" : "";
         row.append(hint);
       };
 
-      const opinion = (rating, isEdit) => {
+      const opinion = (rating, fid) => {
         const box = el("form", { class: "ask-fb-form" });
-        const label = isEdit ? "수정 사유 (선택, 1000자 이내)" : "의견 (선택, 1000자 이내)";
-        const ta = el("textarea", { rows: "2", maxlength: String(FB_MAX), "aria-label": label,
-          placeholder: isEdit ? "평가를 바꾼 이유가 있나요? (선택, 개인정보 제외)"
-            : rating === 1 ? "어떤 점이 좋았나요? (선택, 개인정보 제외)" : "어떤 점이 아쉬웠나요? (선택, 개인정보 제외)" });
+        const ta = el("textarea", { rows: "2", maxlength: String(FB_MAX), "aria-label": "의견 (선택, 1000자 이내)",
+          placeholder: rating === 1 ? "어떤 점이 좋았나요? (선택, 개인정보 제외)" : "어떤 점이 아쉬웠나요? (선택, 개인정보 제외)" });
         const x = el("button", { type: "button", class: "ask-fb-close", "aria-label": "닫기", title: "닫기" });
         x.innerHTML = ICON.close;
         const bar = el("div", { class: "ask-fb-bar" });
@@ -476,7 +478,6 @@
         const ok = el("button", { type: "submit", class: "ask-fb-send", disabled: "" }, "보내기");
         const note = el("span", { class: "ask-fb-note", role: "status" });
         bar.append(note, cnt, ok);
-        if (isEdit) box.append(el("p", { class: "ask-fb-title" }, "수정 사유"));
         box.append(ta, x, bar);
         let startedAt = null;   // 피드백 입력일시: 쓰기 시작한 시각
         ta.addEventListener("input", () => {
@@ -493,7 +494,7 @@
           e.preventDefault();
           if (ok.disabled) return;
           ok.disabled = true; note.textContent = "";
-          if (await post(buildFeedback(answerId, rating, ta.value, startedAt, isEdit))) {
+          if (await post(buildFeedback(answerId, rating, ta.value, startedAt, fid))) {
             box.replaceWith(el("p", { class: "ask-fb-done", role: "status" }, "의견 감사합니다."));
           } else { note.textContent = "보내지 못했어요. 다시 시도해 주세요."; ok.disabled = false; }
         });
@@ -501,20 +502,22 @@
       };
 
       const click = (rating, b) => {
-        if (current && !editing) {   // 고른 버튼을 다시 누름 → 수정 시작(두 버튼을 다시 보여 준다)
-          editing = true; slot.replaceChildren(); paint();
+        if (current) {   // 고른 버튼을 다시 누름 → 그 평가를 취소하고 두 버튼을 안 고른 모습으로
+          current = 0; editing = true;
+          slot.replaceChildren(); paint();
+          if (typeof onRate === "function") onRate(0);
+          post(buildCancel(answerId));
           return;
         }
-        const isEdit = editing;
+        const again = editing;
         current = rating; editing = false;
         paint();
         if (typeof root.blogBurst === "function") root.blogBurst(b);
-        track("ai_feedback", { rating, edited: isEdit });
+        track("ai_feedback", { rating, again });
         if (typeof onRate === "function") onRate(rating);
-        post(buildFeedback(answerId, rating, null, new Date().toISOString(), isEdit));
-        const form = opinion(rating, isEdit);
-        slot.replaceChildren(form);
-        if (isEdit) form.querySelector("textarea").focus();
+        const fid = newFid();   // 새 피드백 = 새 행
+        post(buildFeedback(answerId, rating, null, new Date().toISOString(), fid));
+        slot.replaceChildren(opinion(rating, fid));
         scrollDown();
       };
       up.addEventListener("click", () => click(1, up));
