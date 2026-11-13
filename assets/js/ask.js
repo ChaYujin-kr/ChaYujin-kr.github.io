@@ -453,9 +453,9 @@
       const paint = () => {
         row.replaceChildren();
         for (const [b, r] of [[up, 1], [down, -1]]) {
-          const on = current === r;
+          const on = current === r && !editing;   // 수정 중에는 이전 선택을 표시하지 않는다(둘 다 안 고른 모습)
           b.setAttribute("aria-pressed", String(on));
-          const label = LABEL.get(b) + (on && !editing ? " (다시 누르면 평가 수정)" : "");
+          const label = LABEL.get(b) + (on ? " (다시 누르면 평가 수정)" : "");
           b.setAttribute("aria-label", label); b.title = label;
           if (!current || editing || on) row.append(b);
         }
