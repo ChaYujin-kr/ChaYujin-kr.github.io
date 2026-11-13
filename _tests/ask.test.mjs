@@ -39,6 +39,7 @@ test("buildRequest: 앞뒤 공백 제거, page는 경로만", () => {
 test("interpret: 상태 코드별 화면 문구, 서버 문구가 이상하면 기본 문구", () => {
   assert.equal(core.interpret(200, { can_answer: true, answer: "답", answer_id: "id" }).kind, "answered");
   assert.equal(core.interpret(200, { can_answer: false }).kind, "none");
+  assert.equal(core.interpret(200, { can_answer: false, answer_id: "id" }).answerId, "id");   // 못 찾은 답도 평가 가능
   assert.equal(core.interpret(429, { error: "질문이 너무 잦아요." }).kind, "limited");
   assert.equal(core.interpret(503, { error: "오늘은 쉬어요." }).text, "오늘은 쉬어요.");
   assert.match(core.interpret(500, { error: "x".repeat(500) }).text, /지금은 답할 수 없어요/);
@@ -94,4 +95,14 @@ test("입력 목록: '- ' → '• ', Shift+Enter로 이어 쓰기(번호 +1), �
   assert.deepEqual(core.continueList("2. 둘", 4), { value: "2. 둘\n3. ", caret: 8 });
   assert.deepEqual(core.continueList("x\n• ", 4), { value: "x\n", caret: 2 });
   assert.equal(core.continueList("그냥 문장", 5), null);
+});
+
+test("buildFeedback: 의견이 비면 null, 1000자로 자름, 평가는 1/-1만", () => {
+  assert.deepEqual(core.buildFeedback("id", 1, null, "2026-11-12T00:00:00.000Z"),
+                   { answer_id: "id", rating: 1, comment: null, entered_at: "2026-11-12T00:00:00.000Z" });
+  assert.equal(core.buildFeedback("id", -1, "   ", null).comment, null);
+  assert.equal(core.buildFeedback("id", -1, "  좋아요 ", null).comment, "좋아요");
+  assert.equal(Array.from(core.buildFeedback("id", 1, "가".repeat(1500), null).comment).length, core.FB_MAX);
+  assert.equal(core.buildFeedback("id", 5, "x", 7).rating, -1);
+  assert.equal(core.buildFeedback("id", 1, "x", 7).entered_at, null);
 });

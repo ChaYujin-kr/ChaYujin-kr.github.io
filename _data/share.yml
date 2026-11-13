@@ -1,50 +1,31 @@
-#  Sharing options at the bottom of the post.
-#  Icons from <https://fontawesome.com/>
+#  글 하단 공유 버튼 (_includes/post-sharing.html — Chirpy 7.6.0 것을 덮어씀)
+#  누르면 그 플랫폼의 글쓰기 창이 미리 채워진 글과 함께 열린다(로그인 전이면 로그인 뒤에 열림).
+#
+#  template: 미리 채울 글. TITLE(글 제목) · DESC(글 설명, 100자) · SITE(블로그 이름). 줄바꿈은 그대로 들어간다.
+#  link 안에서 쓸 수 있는 값: TEXT(위 템플릿) · URL(글 주소) · TAGS(태그, 쉼표 구분) · TITLE(제목 - 블로그 이름, 예전 방식)
+#  아이콘: <https://fontawesome.com/>
+template: |-
+  TITLE
+  DESC
 
 platforms:
-  - type: Twitter
+  - type: X
     icon: "fa-brands fa-square-x-twitter"
-    link: "https://twitter.com/intent/tweet?text=TITLE&url=URL"
+    link: "https://twitter.com/intent/tweet?text=TEXT&url=URL&hashtags=TAGS"
 
+  - type: Threads
+    icon: "fa-brands fa-square-threads"
+    link: "https://www.threads.net/intent/post?text=TEXT&url=URL"
+
+  - type: LinkedIn
+    icon: "fab fa-linkedin"
+    link: "https://www.linkedin.com/feed/?shareActive=true&text=TEXT%0A%0AURL"
+
+  # Facebook은 미리 채운 글을 받지 않는다(정책). 링크 카드(제목·설명·대표 이미지)만 붙는다.
   - type: Facebook
     icon: "fab fa-facebook-square"
-    link: "https://www.facebook.com/sharer/sharer.php?title=TITLE&u=URL"
+    link: "https://www.facebook.com/sharer/sharer.php?u=URL"
 
   - type: Telegram
     icon: "fab fa-telegram"
-    link: "https://t.me/share/url?url=URL&text=TITLE"
-
-  # Uncomment below if you need to.
-  #
-  # - type: Linkedin
-  #   icon: "fab fa-linkedin"
-  #   link: "https://www.linkedin.com/feed/?shareActive=true&shareUrl=URL"
-  #
-  # - type: Weibo
-  #   icon: "fab fa-weibo"
-  #   link: "https://service.weibo.com/share/share.php?title=TITLE&url=URL"
-  #
-  # - type: Mastodon
-  #   icon: "fa-brands fa-mastodon"
-  #   # See: https://github.com/justinribeiro/share-to-mastodon#properties
-  #   instances:
-  #     - label: mastodon.social
-  #       link: "https://mastodon.social/"
-  #     - label: mastodon.online
-  #       link: "https://mastodon.online/"
-  #     - label: fosstodon.org
-  #       link: "https://fosstodon.org/"
-  #     - label: photog.social
-  #       link: "https://photog.social/"
-  #
-  # - type: Bluesky
-  #   icon: "fa-brands fa-bluesky"
-  #   link: "https://bsky.app/intent/compose?text=TITLE%20URL"
-  #
-  # - type: Reddit
-  #   icon: "fa-brands fa-square-reddit"
-  #   link: "https://www.reddit.com/submit?url=URL&title=TITLE"
-  #
-  # - type: Threads
-  #   icon: "fa-brands fa-square-threads"
-  #   link: "https://www.threads.net/intent/post?text=TITLE%20URL"
+    link: "https://t.me/share/url?url=URL&text=TEXT"

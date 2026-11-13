@@ -3,6 +3,7 @@
  * - 오른쪽에 붙는 사이드바(휴대폰은 아래 시트). 접기/펼치기, 열린 상태는 이 탭에서만 기억.
  * - 답변은 생성되는 대로 보여준다(서버 SSE). 서버가 출력 가드를 거친 "지금까지의 안전한 전체 글"을 보내고,
  *   끝나면 인용 확인을 마친 최종 답으로 바꾼다(인용이 없으면 "찾지 못했어요").
+ * - 답마다 👍/👎(답을 못 찾았을 때도). 누르면 고른 것만 남고, 의견(선택, 1000자)을 써서 보낼 수 있다. X로 닫으면 의견은 NULL.
  * - 글은 textContent로만 넣는다. 링크는 블로그 글 주소(/posts/)만 <a>로 만든다.
  * - 봇 확인(Turnstile)은 사이드바를 처음 열 때만 불러오고, 필요할 때만 보인다(interaction-only).
  * - GA4로는 질문 내용을 보내지 않는다(결과 유형·글자 수 구간·걸린 시간만).
@@ -13,6 +14,7 @@
 
   /* ── 순수 함수 (_tests/ask.test.mjs) ── */
   const MAX_CHARS = 500;
+  const FB_MAX = 1000;   // 평가 의견 글자 수(서버·DB와 같게)
   const cpLen = (s) => Array.from(s).length;
 
   function safeLinks(links, siteUrl) {
@@ -116,12 +118,19 @@
   const lenBucket = (n) => (n <= 50 ? "<=50" : n <= 100 ? "<=100" : n <= 200 ? "<=200" : "<=500");
   const formatSeconds = (ms) => (ms < 10000 ? (ms / 1000).toFixed(1) : String(Math.round(ms / 1000))) + "초";
 
+  /** 평가 요청 본문. 의견이 비면 null(DB에 NULL), 1000자로 자른다. 입력일시는 ISO 문자열 또는 null. */
+  function buildFeedback(answerId, rating, comment, enteredAt) {
+    const c = typeof comment === "string" ? Array.from(comment.trim()).slice(0, FB_MAX).join("") : "";
+    return { answer_id: answerId, rating: rating === 1 ? 1 : -1, comment: c || null,
+             entered_at: typeof enteredAt === "string" ? enteredAt : null };
+  }
+
   /** 스트리밍이 아닌 응답(오류 JSON 등) 해석. */
   function interpret(status, body) {
     if (status === 200 && body && typeof body.can_answer === "boolean") {
       return body.can_answer
         ? { kind: "answered", text: String(body.answer || ""), answerId: typeof body.answer_id === "string" ? body.answer_id : null }
-        : { kind: "none", text: NONE_TEXT, answerId: null };
+        : { kind: "none", text: NONE_TEXT, answerId: typeof body.answer_id === "string" ? body.answer_id : null };   // 못 찾은 답도 평가 가능
     }
     const msg = body && typeof body.error === "string" && body.error.length < 200 ? body.error : ERROR_TEXT;
     return { kind: status === 429 || status === 503 ? "limited" : "error", text: msg, answerId: null };
@@ -146,7 +155,7 @@
     return { events, rest };
   }
 
-  const core = { MAX_CHARS, cpLen, safeLinks, readConsent, buildRequest, recentTurns, parseRich, autoBullet, continueList, lenBucket, formatSeconds, interpret, parseSSE };
+  const core = { MAX_CHARS, FB_MAX, cpLen, safeLinks, readConsent, buildRequest, buildFeedback, recentTurns, parseRich, autoBullet, continueList, lenBucket, formatSeconds, interpret, parseSSE };
   if (typeof module !== "undefined" && module.exports) { module.exports = core; return; }
   root.BlogAskCore = core;
 
@@ -233,7 +242,7 @@
     const card = el("div", { class: "ask-card" });
     const form = el("form", { class: "ask-form" });
     const box = el("div", { class: "ask-box" });
-    const input = el("textarea", { id: "ask-input", rows: "1", placeholder: "질문 입력 (개인정보 제외) · 코드는 ``` 로 감싸기",
+    const input = el("textarea", { id: "ask-input", rows: "1", placeholder: "질문 입력(개인정보 제외)",
                                    "aria-label": "질문", "aria-describedby": "ask-count" });
     const send = el("button", { type: "submit", class: "ask-send", "aria-label": "보내기", disabled: "" });
     send.innerHTML = ICON.send;
@@ -413,7 +422,7 @@
             }
             wrap.append(ul);
           }
-          if (state.answerId) wrap.append(feedback(state.answerId));
+          if (state.answerId) wrap.append(feedback(state.answerId, state.fb, state.onRate));
           announce.textContent = state.kind === "answered" ? "답변이 완성됐어요" : state.text;
           scrollDown();
           return ms;
@@ -421,22 +430,66 @@
       };
     }
 
-    function feedback(answerId) {
+    /* 평가: 👍/👎 중 하나를 누르면 팡 터지고(site-tools.js blogBurst) 고른 버튼만 남는다. 평가는 바로 보내고(의견 NULL),
+       이어서 의견 칸이 열린다. 의견은 선택: 보내면 같은 답의 행에 덧붙고, X로 닫으면 NULL로 남는다.
+       rated: 이미 고른 값(대화 복원 때). onRate: 고른 값을 대화 기록에 남기는 콜백. */
+    function feedback(answerId, rated, onRate) {
       const fb = el("div", { class: "ask-feedback", role: "group", "aria-label": "답변 평가" });
-      const sendFb = async (rating, b) => {
-        fb.querySelectorAll("button").forEach((x) => { x.disabled = true; });
-        b.setAttribute("aria-pressed", "true");
-        track("ai_feedback", { rating });
-        try {
-          await fetch(`${cfg.endpoint}/feedback`, { method: "POST", headers: { "content-type": "application/json" },
-            body: JSON.stringify({ answer_id: answerId, rating }) });
-        } catch { /* 조용히 */ }
+      const row = el("div", { class: "ask-fb-row" });
+      const post = (body) => fetch(`${cfg.endpoint}/feedback`, { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify(body) }).then((r) => r.ok, () => false);
+      const press = (b) => { b.disabled = true; b.setAttribute("aria-pressed", "true"); };
+      const up = el("button", { type: "button", "aria-label": "도움이 됐어요", title: "도움이 됐어요" }, "👍");
+      const down = el("button", { type: "button", "aria-label": "도움이 안 됐어요", title: "도움이 안 됐어요" }, "👎");
+
+      const opinion = (rating) => {
+        const box = el("form", { class: "ask-fb-form" });
+        const ta = el("textarea", { rows: "2", maxlength: String(FB_MAX), "aria-label": "의견 (선택, 1000자 이내)",
+          placeholder: rating === 1 ? "어떤 점이 좋았나요? (선택, 개인정보 제외)" : "어떤 점이 아쉬웠나요? (선택, 개인정보 제외)" });
+        const x = el("button", { type: "button", class: "ask-fb-close", "aria-label": "의견 입력 닫기", title: "닫기" });
+        x.innerHTML = ICON.close;
+        const bar = el("div", { class: "ask-fb-bar" });
+        const cnt = el("span", { class: "ask-count" }, `0 / ${FB_MAX}`);
+        const ok = el("button", { type: "submit", class: "ask-fb-send", disabled: "" }, "보내기");
+        const note = el("span", { class: "ask-fb-note", role: "status" });
+        bar.append(note, cnt, ok);
+        box.append(ta, x, bar);
+        let startedAt = null;   // 피드백 입력일시: 쓰기 시작한 시각
+        ta.addEventListener("input", () => {
+          if (!startedAt) startedAt = new Date().toISOString();
+          const n = cpLen(ta.value);
+          cnt.textContent = `${n} / ${FB_MAX}`;
+          cnt.classList.toggle("over", n > FB_MAX);
+          ok.disabled = !ta.value.trim() || n > FB_MAX;
+          ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px";   // 쓰는 만큼 늘어남(최대 높이는 CSS)
+        });
+        x.addEventListener("click", () => box.remove());   // 의견 없이 닫기 → 서버에는 평가만(NULL)
+        box.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); box.remove(); } });
+        box.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          if (ok.disabled) return;
+          ok.disabled = true; note.textContent = "";
+          if (await post(buildFeedback(answerId, rating, ta.value, startedAt))) {
+            box.replaceWith(el("p", { class: "ask-fb-done", role: "status" }, "의견 고마워요."));
+          } else { note.textContent = "보내지 못했어요. 다시 시도해 주세요."; ok.disabled = false; }
+        });
+        return box;
       };
-      const up = el("button", { type: "button", "aria-label": "도움이 됐어요" }, "👍");
-      const down = el("button", { type: "button", "aria-label": "도움이 안 됐어요" }, "👎");
-      up.addEventListener("click", () => sendFb(1, up));
-      down.addEventListener("click", () => sendFb(-1, down));
-      fb.append(up, down);
+
+      const choose = (rating, b, other) => {
+        press(b); other.remove();
+        if (typeof root.blogBurst === "function") root.blogBurst(b);
+        track("ai_feedback", { rating });
+        if (typeof onRate === "function") onRate(rating);
+        post(buildFeedback(answerId, rating, null, new Date().toISOString()));
+        fb.append(opinion(rating));
+        scrollDown();
+      };
+      up.addEventListener("click", () => choose(1, up, down));
+      down.addEventListener("click", () => choose(-1, down, up));
+      if (rated === 1 || rated === -1) { const b = rated === 1 ? up : down; press(b); row.append(b); }
+      else row.append(up, down);
+      fb.append(row);
       return fb;
     }
 
@@ -492,8 +545,11 @@
       } finally {
         if (root.turnstile && widgetId !== null) root.turnstile.reset(widgetId);   // 토큰은 1회용
       }
+      const entry = { q, kind: state.kind, text: state.text, links, ms: 0, answerId: state.answerId || null, fb: 0 };
+      state.onRate = (rating) => { entry.fb = rating; saveHistory(history); };   // 고른 평가를 기억(다른 글로 가도 그대로)
       const ms = msg.finish(state, links);
-      history.push({ q, kind: state.kind, text: state.text, links, ms: Math.round(ms) });
+      entry.ms = Math.round(ms);
+      history.push(entry);
       saveHistory(history);
       busy = false; onInput();
       if (!mobileMq.matches) input.focus();
@@ -508,7 +564,8 @@
       for (const h of history) {
         { const u = el("div", { class: "ask-msg user" }); renderRich(u, String(h.q || "")); log.append(u); }
         const kind = ["answered", "none", "error"].includes(h.kind) ? h.kind : "error";
-        botMessage().finish({ kind, text: String(h.text || ""), answerId: null },
+        botMessage().finish({ kind, text: String(h.text || ""), answerId: typeof h.answerId === "string" ? h.answerId : null,
+                              fb: h.fb, onRate: (rating) => { h.fb = rating; saveHistory(history); } },
                             safeLinks(h.links, cfg.siteUrl), Number(h.ms) || 0);
       }
     }

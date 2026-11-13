@@ -7,6 +7,8 @@ Chirpy head 확장 지점
   · 번역: 크롬 내장 Translator API, 본문 글자만 번역하고 코드·날짜는 그대로
   · 음성: Web Speech API, 지원하지 않으면 버튼을 만들지 않음
 - AI 질문 창: assets/js/ask.js, 설정은 _data/assistant.yml (배포 빌드에서는 enabled일 때만)
+- 글 좋아요 + 댓글(Google 로그인): assets/js/community.js, 설정은 _data/community.yml (글 페이지, enabled일 때만)
+- 공유 글 템플릿: _includes/post-sharing.html + _data/share.yml
 - 서체·코드 색: Pretendard(직접 호스팅), 다크 모드 코드 색 GitHub Dark → assets/css/custom.css
 - 사용자 설정 대응: prefers-reduced-motion, prefers-contrast, forced-colors
 - Google Tag Manager (배포 빌드에서만)
@@ -161,6 +163,31 @@ document.addEventListener("DOMContentLoaded", () => {
                       examples: {{ ask.examples | jsonify }} };
 </script>
 <script src="{{ '/assets/js/ask.js' | relative_url }}?v={{ site.time | date: '%s' }}" defer></script>
+{%- endif %}
+{%- comment -%} 글 좋아요 + 댓글: 글 페이지에서만, 주소가 채워져 있을 때만. 배포 빌드에서는 enabled일 때만 {%- endcomment -%}
+{%- assign cm = site.data.community -%}
+{%- assign cm_on = false -%}
+{%- if cm.enabled == true -%}{%- assign cm_on = true -%}{%- endif -%}
+{%- if jekyll.environment != "production" -%}{%- assign cm_on = true -%}{%- endif -%}
+{%- if cm.endpoint == nil or cm.endpoint == "" -%}{%- assign cm_on = false -%}{%- endif -%}
+{%- if page.layout != "post" -%}{%- assign cm_on = false -%}{%- endif -%}
+{%- if cm_on %}
+<link rel="stylesheet" href="{{ '/assets/css/community.css' | relative_url }}?v={{ site.time | date: '%s' }}">
+<script>
+  /* 공개 값만: 서버 주소, Google OAuth 클라이언트 ID */
+  window.BLOG_COMMUNITY = { endpoint: {{ cm.endpoint | jsonify }}, googleClientId: {{ cm.google_client_id | default: "" | jsonify }},
+                            privacyUrl: {{ '/privacy/' | relative_url | jsonify }} };
+</script>
+<script src="{{ '/assets/js/community.js' | relative_url }}?v={{ site.time | date: '%s' }}" defer></script>
+{%- endif %}
+{%- if page.layout == "post" %}
+<script>
+/* 공유 버튼: 어느 플랫폼으로 보냈는지만 기록(글 내용 없음) */
+document.addEventListener("click", e => {
+  const a = e.target.closest(".share-icons a[data-share]");
+  if (a) blogTrack("share_click", { platform: a.dataset.share });
+});
+</script>
 {%- endif %}
 {%- if jekyll.environment == "production" %}
 <script>

@@ -37,6 +37,16 @@
     if (text != null) e.textContent = text;
     return e;
   }
+  /* 팡 효과: 버튼 가운데에서 점 n개가 방사형으로 퍼지며 흐려진다(스타일은 custom.css .fx-burst).
+     AI 답 평가(ask.js), 글·댓글 좋아요(community.js)가 함께 쓴다. */
+  root.blogBurst = (btn, n = 10) => {
+    if (!btn || (root.matchMedia && root.matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
+    const s = el("span", { class: "fx-burst", "aria-hidden": "true" });
+    for (let i = 0; i < n; i++) { const p = doc.createElement("i"); p.style.setProperty("--a", `${(360 / n) * i}deg`); s.append(p); }
+    btn.classList.remove("fx-pop"); void btn.offsetWidth; btn.classList.add("fx-pop");
+    btn.append(s);
+    setTimeout(() => s.remove(), 800);
+  };
   function iconBtn(icon, label, extra) {
     const b = el("button", { type: "button", "aria-label": label, title: label, ...(extra || {}) });
     b.innerHTML = `<i class="fas ${icon}" aria-hidden="true"></i>`;
@@ -97,13 +107,9 @@
   /* ── 다크/라이트: 사이드바 아래 아이콘 하나. 기본은 시스템 설정을 따르고, 아이콘은 "누르면 바뀔 모드"
         (다크일 때 ☀, 라이트일 때 ☾). 수동으로 고른 값이 시스템과 같아지면 저장을 지우고 다시 시스템을 따른다.
         Chirpy 기본 3단 메뉴(라이트/다크/시스템)는 CSS로 숨김 ── */
-  const SUN = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">'
-    + '<circle cx="12" cy="12" r="4.2" fill="currentColor"/>'
-    + '<g stroke="currentColor" stroke-width="2.2" stroke-linecap="round">'
-    + [0, 45, 90, 135, 180, 225, 270, 315].map((a) => `<line x1="12" y1="2.6" x2="12" y2="4.4" transform="rotate(${a} 12 12)"/>`).join("")
-    + "</g></svg>";
-  const MOON = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">'
-    + '<path d="M20.2 14.6A8.4 8.4 0 0 1 9.4 3.8a8.6 8.6 0 1 0 10.8 10.8z" fill="currentColor"/></svg>';
+  /* 아이콘은 옆 버튼(GitHub·RSS)과 같은 Font Awesome 글꼴 */
+  const SUN = '<i class="fas fa-sun" aria-hidden="true"></i>';
+  const MOON = '<i class="fas fa-moon" aria-hidden="true"></i>';
   function themeToggle() {
     const b = iconBtn("fa-moon", "다크 모드로", { class: "theme-btn" });
     const isDark = () => html.getAttribute("data-bs-theme") === "dark"
@@ -136,7 +142,7 @@
     if (!anchor || !main) return;
 
     doc.querySelectorAll("pre, code, kbd, samp, time").forEach((n) => n.setAttribute("translate", "no"));
-    const SKIP = "pre, code, kbd, samp, time, script, style, [translate='no'], .site-tools, .site-menu, #ask-panel, .rec-card";
+    const SKIP = "pre, code, kbd, samp, time, script, style, [translate='no'], .site-tools, .site-menu, #ask-panel, .rec-card, .cm";
     const SPEECH_LANG = { ko: "ko-KR", en: "en-US", ja: "ja-JP", zh: "zh-CN" };
     let currentLang = "ko";
 

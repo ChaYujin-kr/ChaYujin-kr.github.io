@@ -110,12 +110,31 @@ html.ask-open .ask-panel { transform: none; visibility: visible; transition: tra
   border: 1px solid var(--ask-border); color: var(--ask-accent); text-decoration: none;
 }
 .ask-sources a:hover { border-color: var(--ask-accent); text-decoration: underline; text-underline-offset: 3px; }
-.ask-feedback { display: flex; gap: .35rem; margin-top: .4rem; }
-.ask-feedback button {
-  font: inherit; font-size: .85rem; padding: .2rem .65rem; border-radius: 999px; cursor: pointer;
+.ask-feedback { margin-top: .4rem; }
+.ask-fb-row { display: flex; gap: .35rem; }
+.ask-fb-row button {
+  position: relative; font: inherit; font-size: .85rem; padding: .2rem .65rem; border-radius: 999px; cursor: pointer;
   border: 1px solid var(--ask-border); background: var(--ask-bg); color: var(--ask-fg);
+  --fx-c1: #ff9a3d; --fx-c2: var(--ask-rim);
 }
-.ask-feedback button[aria-pressed="true"] { border-color: var(--ask-green); border-width: 2px; }
+.ask-fb-row button:hover:not(:disabled) { border-color: var(--ask-green); }
+.ask-fb-row button[aria-pressed="true"] { border-color: var(--ask-green); border-width: 2px; cursor: default; opacity: 1; }
+/* 의견 칸(선택): 오른쪽 위 X로 닫는다 */
+.ask-fb-form { position: relative; width: 19rem; max-width: 100%; margin-top: .45rem; padding: .5rem .6rem .4rem; border: 1px solid var(--ask-border);
+  border-radius: 14px; background: var(--ask-bg); }
+.ask-fb-form:focus-within { border-color: var(--ask-green); }
+.ask-fb-form textarea { display: block; width: 100%; resize: none; border: 0; outline: 0; background: transparent; color: var(--ask-fg);
+  font: inherit; font-size: 16px; line-height: 1.5; padding: 0 1.9rem 0 0; min-height: 3em; max-height: 9em; overflow-y: auto; }
+.ask-fb-close { position: absolute; top: .3rem; right: .3rem; width: 1.7rem; height: 1.7rem; border-radius: 999px; border: 0;
+  background: transparent; color: var(--ask-muted); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.ask-fb-close:hover { background: var(--ask-surface); color: var(--ask-fg); }
+.ask-fb-close svg { width: 13px; height: 13px; fill: currentColor; }
+.ask-fb-bar { display: flex; align-items: center; justify-content: flex-end; gap: .5rem; margin-top: .2rem; }
+.ask-fb-note { margin-right: auto; font-size: .75rem; color: #b3261e; }
+.ask-fb-send { font: inherit; font-size: .8rem; padding: .2rem .8rem; border-radius: 999px; cursor: pointer;
+  background: var(--ask-grad); color: #e9ecef; border: 1px solid var(--ask-rim); }
+.ask-fb-send:disabled { opacity: .4; cursor: not-allowed; }
+.ask-fb-done { margin: .4rem .3rem 0; font-size: .78rem; color: var(--ask-muted); }
 
 /* 하단: 예시 질문(오른쪽 정렬 칩) + 안내 + 입력 */
 .ask-foot { padding: .4rem .9rem calc(.9rem + env(safe-area-inset-bottom, 0px)); }
@@ -180,7 +199,7 @@ html.ask-open .ask-panel { transform: none; visibility: visible; transition: tra
   .ask-msg.bot.is-streaming .ask-text::after, .ask-thinking i { animation: none; }
 }
 @media (prefers-contrast: more) {
-  .ask-panel, .ask-card, .ask-example, .ask-bubble, .ask-sources a { border-width: 2px; border-color: currentColor; }
+  .ask-panel, .ask-card, .ask-example, .ask-bubble, .ask-sources a, .ask-fb-form { border-width: 2px; border-color: currentColor; }
 }
 @media (forced-colors: active) {
   .ask-launcher, .ask-send, .ask-msg.user { forced-color-adjust: none; background: ButtonText; color: ButtonFace; }
