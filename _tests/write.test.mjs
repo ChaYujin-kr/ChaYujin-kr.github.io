@@ -396,3 +396,50 @@ test("임시 글 저장 시각 표시", () => {
   assert.equal(W.draftTime(Date.UTC(2026, 8, 1, 3, 0, 0), now), "2026-09-01");
   assert.equal(W.draftTime(0, now), "");
 });
+
+/* ── 관리자 로그인과 게시 서버 ── */
+
+test("로그인 상태 읽기: 기한이 남은 것만, 관리자 표시는 true일 때만", () => {
+  const now = 1_000_000_000_000;
+  const ok = JSON.stringify({ token: "t", exp: now / 1000 + 60, name: "차유진", admin: true });
+  assert.deepEqual(W.readAdminSession(ok, now), { token: "t", exp: now / 1000 + 60, name: "차유진", admin: true });
+  assert.equal(W.readAdminSession(JSON.stringify({ token: "t", exp: now / 1000 - 1, admin: true }), now), null);
+  assert.equal(W.readAdminSession(JSON.stringify({ token: "t", exp: now / 1000 + 60, admin: "yes" }), now).admin, false);
+  assert.equal(W.readAdminSession("{깨짐", now), null);
+  assert.equal(W.readAdminSession(null, now), null);
+  assert.equal(W.readAdminSession(JSON.stringify({ exp: now / 1000 + 60 }), now), null);
+});
+
+test("Google 로그인 토큰의 만료 시각", () => {
+  const jwt = (p) => `h.${Buffer.from(JSON.stringify(p)).toString("base64url")}.s`;
+  assert.equal(W.credentialExp(jwt({ exp: 1795300000, email: "x" })), 1795300000);
+  assert.equal(W.credentialExp(jwt({})), 0);
+  assert.equal(W.credentialExp("깨진 값"), 0);
+  assert.equal(W.credentialExp(undefined), 0);
+});
+
+test("로그인 확인: 서버의 관리자 여부를 그대로 받고, 오류 문구를 전한다", async () => {
+  let sent;
+  const fetchImpl = async (url, init) => { sent = { url, body: JSON.parse(init.body) }; return { ok: true, status: 200, json: async () => ({ token: "s", exp: 9, name: "주인", admin: true }) }; };
+  assert.deepEqual(await W.loginSession({ endpoint: "https://c.example", credential: "CRED", fetchImpl }), { token: "s", exp: 9, name: "주인", admin: true });
+  assert.deepEqual(sent, { url: "https://c.example/session", body: { credential: "CRED" } });
+  const visitor = await W.loginSession({ endpoint: "https://c.example", credential: "C", fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ token: "s", exp: 9, name: "손님" }) }) });
+  assert.equal(visitor.admin, false);
+  await assert.rejects(W.loginSession({ endpoint: "https://c.example", credential: "C", fetchImpl: async () => ({ ok: false, status: 401, json: async () => ({ error: "Google 로그인을 확인하지 못했어요." }) }) }), /확인하지 못했어요/);
+  await assert.rejects(W.loginSession({ endpoint: "https://c.example", credential: "C", fetchImpl: async () => { throw new Error("net"); } }), /연결하지 못했습니다/);
+});
+
+test("게시 서버로 올리기: 로그인 토큰·파일·기대 상태를 보내고 서버의 거절 문구를 전한다", async () => {
+  let sent;
+  const fetchImpl = async (url, init) => { sent = { url, method: init.method, body: JSON.parse(init.body) }; return { ok: true, status: 200, json: async () => ({ sha: "abc1234", url: "https://github.com/o/r/commit/abc1234" }) }; };
+  const out = await W.publishViaWorker({ endpoint: "https://p.example", credential: "CRED", message: "글 수정: 제목", files: [{ path: "_posts/2026-11-22-a.md", base64: "QQ==" }],
+    expect: { mode: "update", sha: "f".repeat(40) }, fetchImpl });
+  assert.deepEqual(out, { sha: "abc1234", url: "https://github.com/o/r/commit/abc1234" });
+  assert.deepEqual(sent, { url: "https://p.example/publish", method: "POST", body: { credential: "CRED", message: "글 수정: 제목",
+    files: [{ path: "_posts/2026-11-22-a.md", base64: "QQ==" }], expect: { mode: "update", sha: "f".repeat(40) } } });
+  const refuse = (status, error) => W.publishViaWorker({ endpoint: "https://p.example", credential: "C", message: "m", files: [], expect: { mode: "create" },
+    fetchImpl: async () => ({ ok: false, status, json: async () => ({ error }) }) });
+  await assert.rejects(refuse(403, "이 계정에는 글을 올릴 권한이 없어요."), /권한이 없어요/);
+  await assert.rejects(refuse(409, "같은 이름의 글 파일이 이미 있어요. 주소를 바꿔 주세요."), /이미 있어요/);
+  await assert.rejects(refuse(500, undefined), /서버 오류 500/);
+});

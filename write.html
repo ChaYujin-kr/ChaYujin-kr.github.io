@@ -3,6 +3,9 @@ layout: null
 permalink: /write/
 sitemap: false
 ---
+{%- assign cm = site.data.community -%}
+{%- assign login = false -%}{%- if cm.enabled and cm.endpoint and cm.google_client_id -%}{%- assign login = true -%}{%- endif -%}
+{%- assign pub = site.data.write.publish_endpoint | default: "" -%}
 <!doctype html>
 <html lang="ko">
 <head>
@@ -10,12 +13,24 @@ sitemap: false
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <meta name="referrer" content="no-referrer">
-  <!-- 토큰을 다루는 화면: 스크립트는 이 사이트의 파일만, 외부 연결은 GitHub API만 허용. 분석·댓글·AI 스크립트는 넣지 않는다. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://api.github.com; base-uri 'none'; form-action 'none'">
+  <!-- 글을 올리는 화면: 스크립트는 이 사이트의 파일과 Google 로그인만, 외부 연결은 GitHub API·Google 로그인·블로그 서버(로그인 확인, 게시)만 허용.
+       분석·댓글·AI 스크립트는 넣지 않는다. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'{% if login %} https://accounts.google.com/gsi/client{% endif %}; style-src 'self' 'unsafe-inline'{% if login %} https://accounts.google.com/gsi/style{% endif %}; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://api.github.com{% if login %} https://accounts.google.com/gsi/ {{ cm.endpoint }}{% endif %}{% if pub != "" %} {{ pub }}{% endif %};{% if login %} frame-src https://accounts.google.com/gsi/;{% endif %} base-uri 'none'; form-action 'none'">
   <title>글쓰기 | {{ site.title }}</title>
   <link rel="stylesheet" href="{{ '/assets/css/write.css' | relative_url }}?v={{ site.time | date: '%s' }}">
 </head>
 <body>
+<!-- 관리자 확인: 댓글 로그인과 같은 Google 로그인으로, 서버에 등록된 블로그 주인 계정인지 확인한다 -->
+<div id="w-gate" class="w-gate"{% unless login %} hidden{% endunless %} data-endpoint="{% if login %}{{ cm.endpoint }}{% endif %}" data-client-id="{% if login %}{{ cm.google_client_id }}{% endif %}">
+  <div class="w-gate-box">
+    <h1>글쓰기</h1>
+    <p>블로그 주인만 글을 쓸 수 있습니다. 관리자 Google 계정으로 로그인하세요.</p>
+    <button type="button" id="w-gate-start" class="w-primary">Google로 로그인</button>
+    <div id="w-gate-gsi" class="w-gsi"></div>
+    <p id="w-gate-msg" class="w-gate-msg" role="alert"></p>
+    <p class="w-gate-foot"><a href="{{ '/' | relative_url }}">← 블로그로</a> · <button type="button" id="w-gate-token" class="w-link">GitHub 토큰으로 쓰기</button></p>
+  </div>
+</div>
 <div id="write-app">
   <header class="w-bar">
     <a class="w-back" href="{{ '/' | relative_url }}">← 블로그</a>
@@ -24,6 +39,8 @@ sitemap: false
     <button type="button" id="w-load" class="w-ghost">글 불러오기</button>
     <span id="w-editing" class="w-editing" hidden></span>
     <span id="w-status" class="w-status" role="status" aria-live="polite"></span>
+    <span id="w-who" class="w-who" hidden></span>
+    <button type="button" id="w-logout" class="w-link" hidden>로그아웃</button>
     <button type="button" id="w-toggle" class="w-ghost w-only-narrow" aria-pressed="false">미리보기</button>
     <button type="button" id="w-open" class="w-primary">게시하기</button>
   </header>
@@ -104,7 +121,13 @@ sitemap: false
           <datalist id="w-cat1-list"></datalist><datalist id="w-cat2-list"></datalist><datalist id="w-tags-list"></datalist>
         </fieldset>
 
-        <fieldset>
+        <fieldset id="w-auth-admin" hidden>
+          <legend>게시 권한</legend>
+          <p id="w-admin-state" class="w-admin-state"></p>
+          <div id="w-admin-gsi" class="w-gsi"></div>
+        </fieldset>
+
+        <fieldset id="w-auth-token">
           <legend>GitHub 토큰</legend>
           <input id="w-token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…" aria-describedby="w-token-help">
           <div class="w-row">

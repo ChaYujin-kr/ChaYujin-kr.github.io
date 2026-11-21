@@ -5,8 +5,10 @@
  * - 본문 이미지: 버튼·붙여넣기·끌어다 놓기. 본문에는 (upload:이름)으로 적어 두고 파일은 이 브라우저(IndexedDB)에 보관했다가,
  *   게시할 때 assets/img/posts/<주소>/ 아래에 글과 같은 커밋으로 올리고 경로를 바꿔 쓴다.
  * - 임시 저장: 쓰는 글마다 따로 보관하고 '임시 글' 목록에서 열거나 지운다 (이 브라우저의 localStorage).
- * - 게시: GitHub API로 글·썸네일·시리즈 목록을 커밋 하나에 담아 올린다. 토큰은 이 브라우저에만 저장된다.
- *         토큰 없이 파일로 내려받을 수도 있다.
+ * - 관리자 확인: 댓글과 같은 Google 로그인으로 블로그 주인 계정인지 서버에 확인한 뒤에 편집기를 연다.
+ * - 게시: 게시 서버가 설정돼 있으면(_data/write.yml) 관리자 로그인만으로 서버가 커밋한다.
+ *         없으면 GitHub 토큰으로 브라우저가 직접 커밋한다(토큰은 이 브라우저에만 저장). 파일로 내려받을 수도 있다.
+ *         어느 쪽이든 글·썸네일·본문 이미지·시리즈 목록을 커밋 하나에 담는다.
  * 순수 함수는 아래 api로 내보내 _tests/write.test.mjs에서 검사한다.
  */
 (function (root) {
@@ -267,6 +269,54 @@
     return { body: out, files, missing };
   }
 
+  /* ── 관리자 로그인과 게시 서버 ── */
+
+  /** 댓글 화면(community.js)과 같은 모양의 로그인 상태. 기한이 지났거나 깨졌으면 null. */
+  function readAdminSession(raw, nowMs) {
+    try {
+      const s = JSON.parse(raw || "null");
+      if (!s || typeof s.token !== "string" || typeof s.exp !== "number" || s.exp * 1000 <= nowMs) return null;
+      return { token: s.token, exp: s.exp, name: String(s.name || "익명"), admin: s.admin === true };
+    } catch { return null; }
+  }
+
+  /** Google ID 토큰의 만료 시각(초). 읽지 못하면 0. 서명은 서버가 검증한다. */
+  function credentialExp(jwt) {
+    try {
+      const part = String(jwt).split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+      const p = JSON.parse(atob(part + "===".slice((part.length + 3) % 4)));
+      return typeof p.exp === "number" ? p.exp : 0;
+    } catch { return 0; }
+  }
+
+  async function postJson(url, body, fetchImpl) {
+    let res;
+    try { res = await (fetchImpl || root.fetch.bind(root))(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) }); }
+    catch { const e = new Error("서버에 연결하지 못했습니다."); e.status = 0; throw e; }
+    let data = {};
+    try { data = (await res.json()) || {}; } catch { /* 빈 본문 */ }
+    if (!res.ok) { const e = new Error(typeof data.error === "string" && data.error.length < 200 ? data.error : `서버 오류 ${res.status}`); e.status = res.status; throw e; }
+    return data;
+  }
+
+  /** Google 로그인 결과를 블로그 서버에 보내 로그인 상태를 받는다. @returns {token, exp, name, admin} */
+  async function loginSession(o) {
+    const d = await postJson(`${o.endpoint}/session`, { credential: o.credential }, o.fetchImpl);
+    if (typeof d.token !== "string" || typeof d.exp !== "number") throw new Error("로그인 응답을 읽지 못했습니다.");
+    return { token: d.token, exp: d.exp, name: String(d.name || "익명"), admin: d.admin === true };
+  }
+
+  /**
+   * 게시 서버에 맡겨 커밋한다. 서버가 요청마다 관리자 계정인지 다시 확인한다.
+   * @param o {endpoint, credential, message, files:[{path, base64}], expect:{mode:'create'}|{mode:'update', sha}, fetchImpl}
+   * @returns {sha, url}
+   */
+  async function publishViaWorker(o) {
+    const d = await postJson(`${o.endpoint}/publish`, { credential: o.credential, message: o.message, files: o.files, expect: o.expect }, o.fetchImpl);
+    if (typeof d.sha !== "string" || typeof d.url !== "string") throw new Error("게시 서버의 응답을 읽지 못했습니다.");
+    return { sha: d.sha, url: d.url };
+  }
+
   /* ── 임시 저장 글 목록 ── */
 
   const draftIsEmpty = (d) => !d || (!String(d.title || "").trim() && !String(d.body || "").trim());
@@ -467,7 +517,7 @@
   const api = { SUMMARY_CHARS, SUMMARY_MAX, COVER_COLORS, plainText, summarize, slugify, kstStamp, yamlStr, splitList, protectLiquid,
     buildPost, postPath, postUrl, appendSeries, coverSvg, validate, b64utf8, b64decodeUtf8, commitFiles, readRepoFile, readRepoFileInfo, planFiles, explainStatus,
     parseScalar, parseFlowList, parsePost, buildEditedPost, slugFromPath, uploadName, uploadRefs, resolveUploads,
-    draftIsEmpty, parseDrafts, listDrafts, findDraftByPath, draftTime };
+    draftIsEmpty, parseDrafts, listDrafts, findDraftByPath, draftTime, readAdminSession, credentialExp, loginSession, publishViaWorker };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   const doc = root.document;
   if (!doc || !doc.getElementById("write-app")) return;
@@ -499,17 +549,21 @@
     token: $("w-token"), remember: $("w-remember"), forget: $("w-forget"), publish: $("w-publish"), download: $("w-download"), cancel: $("w-cancel"),
     load: $("w-load"), editing: $("w-editing"), fresh: $("w-new"), thumbKeep: $("w-thumb-keep"), dialogTitle: $("w-dialog-title"),
     imageBtn: $("w-image"), imageFile: $("w-image-file"),
+    gate: $("w-gate"), gateStart: $("w-gate-start"), gateGsi: $("w-gate-gsi"), gateMsg: $("w-gate-msg"), gateToken: $("w-gate-token"),
+    who: $("w-who"), logout: $("w-logout"), authAdmin: $("w-auth-admin"), authToken: $("w-auth-token"), adminState: $("w-admin-state"), adminGsi: $("w-admin-gsi"),
     draftsBtn: $("w-drafts"), draftsCount: $("w-drafts-count"), draftsDialog: $("w-drafts-dialog"), draftsList: $("w-drafts-list"), draftsClose: $("w-drafts-close"),
     loadDialog: $("w-load-dialog"), loadSearch: $("w-load-search"), loadList: $("w-load-list"), loadError: $("w-load-error"), loadClose: $("w-load-close") };
 
-  const cfg = { repo: "", branch: "main", series: [], categories: [], tags: [], postUrls: [], posts: [] };
+  const cfg = { repo: "", branch: "main", series: [], categories: [], tags: [], postUrls: [], posts: [], publishEndpoint: "" };
+  /* 관리자 확인 상태. mode: "" 잠김 / "admin" Google 로그인으로 확인됨 / "token" GitHub 토큰으로 쓰기 / "open" 로그인 설정이 없는 사이트 */
+  const auth = { mode: "", name: "", credential: "", credExp: 0, endpoint: el.gate.dataset.endpoint || "", clientId: el.gate.dataset.clientId || "" };
+  const ADMIN_FLAG = "blog-admin" /* 이 브라우저에서 블로그의 '새 글'·'글쓰기'·'수정' 링크를 보이게 한다 (화면 표시용) */, SESSION_KEY = "cm-session", TOKEN_MODE_KEY = "write-token-mode";
   const ui = { summaryEdited: false, slugEdited: false, coverEdited: { label: false, number: false, text: false }, newKeyEdited: false,
     color: 0, upload: null, busy: false, noticeUntil: 0 /* 안내 문구가 '임시 저장됨'에 바로 덮이지 않게 하는 시각 */,
     edit: null /* 수정 중인 글: {path, slug, sha, entries, liquid, original, image} */,
     uploads: new Map() /* 본문 이미지: 이름 → {name, type, blob, url} */,
     draftId: "" /* 지금 쓰는 임시 글 */, metaReady: false /* 시리즈 목록까지 불러와 게시 창 값을 믿을 수 있는지 */ };
 
-  store.set("write-enabled", "1"); /* 이 브라우저에서는 사이드바에 '글쓰기' 링크가 보인다 (metadata-hook.html) */
 
   /* ── 본문 이미지 보관 (IndexedDB). 쓸 수 없는 브라우저에서는 이 탭의 메모리에만 둔다. ── */
   const idb = {
@@ -812,6 +866,7 @@
     coverDefaults();
     renderSummaryCount(); renderUrlHint(); renderThumb();
     el.errors.hidden = true; el.result.hidden = true; el.form.hidden = false;
+    renderAuthFields();
     el.dialog.showModal();
   }
 
@@ -853,11 +908,13 @@
   async function publish() {
     const s = check();
     if (!s) return;
+    const viaServer = usePublisher();
     const token = el.token.value.trim();
-    if (!token) { showErrors(["GitHub 토큰을 입력하세요. 토큰 없이 올리려면 '파일로 내려받기'를 쓰세요."]); return; }
+    if (viaServer && !credentialFresh()) { renderAuthFields(); showErrors(["Google 로그인 확인이 필요합니다. '게시 권한' 칸의 버튼으로 로그인한 뒤 다시 누르세요."]); return; }
+    if (!viaServer && !token) { showErrors(["GitHub 토큰을 입력하세요. 토큰 없이 올리려면 '파일로 내려받기'를 쓰세요."]); return; }
     setBusy(true);
     try {
-      const base = { token, repo: cfg.repo, branch: cfg.branch };
+      const base = { token: viaServer ? "" : token, repo: cfg.repo, branch: cfg.branch };
       let seriesYaml = "";
       if (s.series.mode === "new") {
         seriesYaml = await readRepoFile({ ...base, path: "_data/series.yml" }) || "";
@@ -866,12 +923,21 @@
       const editing = ui.edit;
       s.uploads = await uploadsForPublish(s.body);
       const plan = planFiles(s, { now: new Date(), seriesList: cfg.series, seriesYaml, edit: editing });
-      const current = await readRepoFileInfo({ ...base, path: plan.path });
-      if (!editing && current !== null) throw new Error("같은 이름의 글 파일이 이미 저장소에 있습니다. 주소를 바꾸세요.");
-      if (editing && current === null) throw new Error("저장소에서 이 글 파일을 찾지 못했습니다. 지워졌거나 이름이 바뀌었습니다.");
-      if (editing && current.sha !== editing.sha) throw new Error("불러온 뒤에 저장소의 글이 바뀌었습니다. 내용을 따로 복사해 두고 글을 다시 불러오세요.");
-      const done = await commitFiles({ ...base, message: `${editing ? "글 수정" : "글 게시"}: ${s.title.trim()}`, files: plan.files });
-      if (el.remember.checked) { store.set(TOKEN_KEY, token); session.del(TOKEN_KEY); } else { session.set(TOKEN_KEY, token); store.del(TOKEN_KEY); }
+      const message = `${editing ? "글 수정" : "글 게시"}: ${s.title.trim()}`;
+      let done;
+      if (viaServer) {
+        /* 같은 이름의 글이 있는지, 불러온 뒤 바뀌었는지는 서버가 올리기 직전에 확인한다 */
+        done = await publishViaWorker({ endpoint: cfg.publishEndpoint, credential: auth.credential, message, files: plan.files,
+          expect: editing ? { mode: "update", sha: editing.sha } : { mode: "create" } });
+      } else {
+        const current = await readRepoFileInfo({ ...base, path: plan.path });
+        if (!editing && current !== null) throw new Error("같은 이름의 글 파일이 이미 저장소에 있습니다. 주소를 바꾸세요.");
+        if (editing && current === null) throw new Error("저장소에서 이 글 파일을 찾지 못했습니다. 지워졌거나 이름이 바뀌었습니다.");
+        if (editing && current.sha !== editing.sha) throw new Error("불러온 뒤에 저장소의 글이 바뀌었습니다. 내용을 따로 복사해 두고 글을 다시 불러오세요.");
+        done = await commitFiles({ ...base, message, files: plan.files });
+        if (el.remember.checked) { store.set(TOKEN_KEY, token); session.del(TOKEN_KEY); } else { session.set(TOKEN_KEY, token); store.del(TOKEN_KEY); }
+        store.set(ADMIN_FLAG, "1");
+      }
       clearTimeout(saveTimer);
       delete drafts.items[ui.draftId]; dropUploads(ui.draftId); forgetUploads();
       ui.draftId = newDraftId(); persistDrafts();
@@ -913,6 +979,74 @@
       renderThumb();
     };
     reader.readAsDataURL(file);
+  }
+
+  /* ── 관리자 확인 ── */
+
+  const usePublisher = () => auth.mode === "admin" && !!cfg.publishEndpoint;
+  const credentialFresh = () => !!auth.credential && auth.credExp * 1000 > Date.now() + 60000;
+
+  let gsiLoading = null;
+  const loadGsi = () => gsiLoading || (gsiLoading = new Promise((resolve, reject) => {
+    if (root.google && root.google.accounts && root.google.accounts.id) return resolve(root.google.accounts.id);
+    const sc = doc.createElement("script");
+    sc.src = "https://accounts.google.com/gsi/client"; sc.async = true;
+    sc.onload = () => (root.google && root.google.accounts && root.google.accounts.id ? resolve(root.google.accounts.id) : reject(new Error("gsi")));
+    sc.onerror = () => { gsiLoading = null; reject(new Error("gsi")); };
+    doc.head.appendChild(sc);
+  }));
+
+  /** Google 로그인 버튼을 slot에 그린다. 로그인하면 서버에 확인한 뒤 done(결과)을 부른다. */
+  async function showGoogleButton(slot, say, done) {
+    try {
+      const gid = await loadGsi();
+      gid.initialize({ client_id: auth.clientId, ux_mode: "popup", auto_select: false, callback: async (resp) => {
+        try {
+          const credential = resp && resp.credential;
+          const sess = await loginSession({ endpoint: auth.endpoint, credential });
+          if (!sess.admin) { store.del(ADMIN_FLAG); say("이 계정에는 글쓰기 권한이 없습니다. 블로그 주인 계정으로 로그인하세요."); return; }
+          session.set(SESSION_KEY, JSON.stringify(sess)); /* 댓글 화면과 같은 로그인 상태(이 탭에서만) */
+          store.set(ADMIN_FLAG, "1");
+          auth.name = sess.name; auth.credential = credential; auth.credExp = credentialExp(credential);
+          say(""); done();
+        } catch (e) { say(e && e.message ? e.message : "로그인을 확인하지 못했습니다."); }
+      } });
+      slot.innerHTML = "";
+      gid.renderButton(slot, { type: "standard", theme: "outline", size: "large", text: "signin_with", locale: "ko" });
+    } catch { say("Google 로그인을 불러오지 못했습니다. 광고 차단 확장을 확인하세요."); }
+  }
+
+  function unlock(mode) {
+    auth.mode = mode;
+    el.gate.hidden = true;
+    const admin = mode === "admin";
+    el.who.hidden = !admin; el.logout.hidden = !admin;
+    el.who.textContent = admin ? `관리자: ${auth.name}` : "";
+  }
+
+  function initGate() {
+    if (!auth.endpoint || !auth.clientId) { unlock("open"); return; } /* 로그인 설정이 없는 사이트: 잠그지 않는다 */
+    const sess = readAdminSession(session.get(SESSION_KEY), Date.now());
+    if (sess && sess.admin) { auth.name = sess.name; unlock("admin"); return; }
+    if (session.get(TOKEN_MODE_KEY) === "1") { unlock("token"); return; }
+    el.gate.hidden = false;
+    const say = (m) => { el.gateMsg.textContent = m; };
+    el.gateStart.addEventListener("click", async () => {
+      el.gateStart.disabled = true;
+      await showGoogleButton(el.gateGsi, say, () => unlock("admin"));
+      if (el.gateGsi.childElementCount) el.gateStart.hidden = true; else el.gateStart.disabled = false;
+    });
+    el.gateToken.addEventListener("click", () => { session.set(TOKEN_MODE_KEY, "1"); unlock("token"); });
+  }
+
+  /** 게시 창의 권한 칸: 게시 서버를 쓰면 Google 로그인 상태를, 아니면 토큰 입력을 보인다 */
+  function renderAuthFields() {
+    const viaServer = usePublisher();
+    el.authAdmin.hidden = !viaServer; el.authToken.hidden = viaServer;
+    if (!viaServer) return;
+    if (credentialFresh()) { el.adminState.textContent = `${auth.name} 계정으로 확인됐습니다. 토큰 없이 게시합니다.`; el.adminGsi.innerHTML = ""; return; }
+    el.adminState.textContent = "게시하려면 Google 로그인을 한 번 더 확인해야 합니다 (확인은 1시간 동안 유효).";
+    showGoogleButton(el.adminGsi, (m) => { if (m) showErrors([m]); else el.errors.hidden = true; }, renderAuthFields);
   }
 
   /* ── 기존 글 수정 ── */
@@ -1032,6 +1166,7 @@
   }
 
   function init() {
+    initGate();
     loadDraft(); render(); buildColors(); renderEditState(); restoreUploads();
     const saved = session.get(TOKEN_KEY) || store.get(TOKEN_KEY);
     if (saved) { el.token.value = saved; el.remember.checked = !!store.get(TOKEN_KEY); }
@@ -1069,6 +1204,7 @@
     el.loadSearch.addEventListener("input", renderLoadList);
     el.loadClose.addEventListener("click", () => el.loadDialog.close());
     el.fresh.addEventListener("click", startNew);
+    el.logout.addEventListener("click", () => { session.del(SESSION_KEY); session.del(TOKEN_MODE_KEY); store.del(ADMIN_FLAG); clearTimeout(saveTimer); saveDraft(); root.location.reload(); });
     el.draftsBtn.addEventListener("click", () => { renderDraftList(); el.draftsDialog.showModal(); });
     el.draftsClose.addEventListener("click", () => el.draftsDialog.close());
     /* 게시 창에서 고친 요약·분류·시리즈도 임시 글에 함께 저장한다 */

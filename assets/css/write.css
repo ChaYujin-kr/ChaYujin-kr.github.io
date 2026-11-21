@@ -23,6 +23,19 @@ a { color: var(--w-accent); }
 
 #write-app { display: flex; flex-direction: column; height: 100%; }
 
+/* 관리자 확인 화면: 로그인 전에는 편집기를 가린다 */
+.w-gate { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 1rem; background: var(--w-bg); }
+.w-gate-box { width: min(26rem, 100%); text-align: center; }
+.w-gate-box h1 { font-size: 1.6rem; margin: 0 0 .5rem; }
+.w-gate-box p { margin: 0 0 1.25rem; color: var(--w-muted); }
+.w-gsi { display: flex; justify-content: center; min-height: 0; margin: .25rem 0; }
+.w-gate-msg:empty { display: none; }
+.w-gate-box .w-gate-msg { color: var(--w-danger); margin-top: 1rem; }
+.w-gate-box .w-gate-foot { margin-top: 2rem; font-size: .85rem; }
+.w-who { font-size: .85rem; color: var(--w-muted); white-space: nowrap; }
+.w-admin-state { margin: 0 0 .5rem; font-size: .9rem; }
+#w-auth-admin .w-gsi { justify-content: flex-start; }
+
 /* 위 막대 */
 .w-bar { display: flex; align-items: center; gap: .75rem; padding: .6rem 1rem; border-bottom: 1px solid var(--w-border); }
 .w-back { text-decoration: none; font-weight: 600; }
@@ -144,7 +157,7 @@ a { color: var(--w-accent); }
   .w-tools small { display: none; }
   .w-title { font-size: 1.5rem; }
   .w-grid { grid-template-columns: 1fr; }
-  .w-status, .w-editing { display: none; }
+  .w-status, .w-editing, .w-who { display: none; }
   #w-toggle { margin-left: auto; }
   .w-bar { flex-wrap: wrap; gap: .4rem; padding: .5rem .75rem; }
   .w-bar .w-ghost, .w-bar .w-primary { padding: .35rem .6rem; font-size: .88rem; }
