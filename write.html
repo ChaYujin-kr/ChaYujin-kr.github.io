@@ -19,6 +19,9 @@ sitemap: false
 <div id="write-app">
   <header class="w-bar">
     <a class="w-back" href="{{ '/' | relative_url }}">← 블로그</a>
+    <button type="button" id="w-load" class="w-ghost">글 불러오기</button>
+    <span id="w-editing" class="w-editing" hidden></span>
+    <button type="button" id="w-new" class="w-ghost" hidden>새 글</button>
     <span id="w-status" class="w-status" role="status" aria-live="polite"></span>
     <button type="button" id="w-toggle" class="w-ghost w-only-narrow" aria-pressed="false">미리보기</button>
     <button type="button" id="w-open" class="w-primary">게시하기</button>
@@ -44,6 +47,7 @@ sitemap: false
           <legend>썸네일</legend>
           <img id="w-thumb" class="w-thumb" alt="썸네일 미리보기" data-proofer-ignore>
           <div class="w-radios">
+            <label id="w-thumb-keep" hidden><input type="radio" name="thumb" value="keep"> 기존 유지</label>
             <label><input type="radio" name="thumb" value="auto" checked> 자동 표지</label>
             <label><input type="radio" name="thumb" value="upload"> 이미지 올리기</label>
             <label><input type="radio" name="thumb" value="none"> 없음</label>
@@ -123,6 +127,16 @@ sitemap: false
     </div>
   </form>
   <div id="w-result" class="w-result" hidden></div>
+</dialog>
+
+<dialog id="w-load-dialog" class="w-dialog w-load" aria-labelledby="w-load-title">
+  <div class="w-load-body">
+    <h2 id="w-load-title">글 불러오기</h2>
+    <input id="w-load-search" type="text" placeholder="제목으로 찾기" aria-label="제목으로 찾기" autocomplete="off">
+    <ul id="w-load-list" class="w-load-list"></ul>
+    <p id="w-load-error" class="w-errors" role="alert" hidden></p>
+    <div class="w-actions"><button type="button" id="w-load-close" class="w-ghost">닫기</button></div>
+  </div>
 </dialog>
 
 <script src="{{ '/assets/js/thirdparty/marked.min.js' | relative_url }}"></script>

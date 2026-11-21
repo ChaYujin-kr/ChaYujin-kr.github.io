@@ -191,3 +191,124 @@ test("저장소 파일 읽기: 없으면 null, 있으면 내용", async () => {
     fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ content: Buffer.from("- key: 가\n").toString("base64").replace(/(.{4})/g, "$1\n") }) }) });
   assert.equal(got, "- key: 가\n");
 });
+
+/* ── 기존 글 수정 ── */
+
+const SAMPLE = `---
+title: "원래 제목"
+date: 2026-11-08 01:00:00 +0900
+categories: [MLOps, 실습 시리즈]
+tags: [mlops, series]
+description: "원래 요약"
+image:
+  path: /assets/img/posts/a.svg
+  alt: "원래 제목"
+series: mlops-drift
+series_title: "MLOps 실습 시리즈"
+pin: true
+math: true
+---
+
+{% include series-nav.html %}
+
+첫 문단.
+
+[다음 글]({% post_url 2026-11-08-b %})
+`;
+
+test("값 읽기: 따옴표 종류와 목록", () => {
+  assert.equal(W.parseScalar(' "큰 \\"따옴표\\"" '), '큰 "따옴표"');
+  assert.equal(W.parseScalar("'작은 ''따옴표'''"), "작은 '따옴표'");
+  assert.equal(W.parseScalar("그냥 값  # 주석"), "그냥 값");
+  assert.deepEqual(W.parseFlowList('[MLOps, "쉼표, 포함", \'c\']'), ["MLOps", "쉼표, 포함", "c"]);
+  assert.deepEqual(W.parseFlowList("[]"), []);
+});
+
+test("글 읽기: 머리말 값, 본문, 다루지 않는 항목 보관", () => {
+  const p = W.parsePost(SAMPLE);
+  assert.deepEqual(p.data, { title: "원래 제목", categories: ["MLOps", "실습 시리즈"], tags: ["mlops", "series"], description: "원래 요약",
+    image: "/assets/img/posts/a.svg", series: "mlops-drift", seriesTitle: "MLOps 실습 시리즈" });
+  assert.equal(p.body, "첫 문단.\n\n[다음 글]({% post_url 2026-11-08-b %})");
+  assert.equal(p.liquid, "keep", "Liquid 태그를 직접 쓴 글은 감싸지 않는다");
+  assert.deepEqual(p.entries.map((e) => e.key), ["title", "date", "categories", "tags", "description", "image", "series", "series_title", "pin", "math"]);
+  assert.equal(W.parsePost("머리말이 없는 글"), null);
+  const block = W.parsePost("---\ntitle: 따옴표 없는 제목\ntags:\n  - a\n  - b\nimage: /x.png\n---\n본문\r\n");
+  assert.deepEqual([block.data.title, block.data.tags, block.data.image, block.body, block.liquid], ["따옴표 없는 제목", ["a", "b"], "/x.png", "본문", "auto"]);
+  assert.equal(W.slugFromPath("_posts/2026-11-22-my-post.md"), "my-post");
+  assert.equal(W.slugFromPath("../etc/passwd"), "");
+});
+
+const edited = (over = {}) => {
+  const p = W.parsePost(SAMPLE);
+  return W.buildEditedPost({ entries: p.entries, liquid: p.liquid, original: p.data, title: p.data.title, categories: p.data.categories, tags: p.data.tags,
+    description: p.data.description, image: { mode: "keep" }, series: p.data.series, seriesTitle: p.data.seriesTitle, body: p.body, ...over });
+};
+
+test("고쳐 쓰기: 아무것도 안 바꾸면 파일이 그대로다", () => {
+  assert.equal(edited(), SAMPLE);
+});
+
+test("고쳐 쓰기: 바꾼 항목의 줄만 달라지고 날짜·pin·math는 남는다", () => {
+  const out = edited({ title: "새 제목", body: "바뀐 본문" });
+  const before = SAMPLE.split("\n"), after = out.split("\n");
+  assert.equal(after[1], 'title: "새 제목"');
+  assert.deepEqual(after.slice(2, 13), before.slice(2, 13), "제목 말고는 머리말이 그대로");
+  assert.ok(out.includes("date: 2026-11-08 01:00:00 +0900") && out.includes("pin: true") && out.includes("math: true"));
+  assert.ok(out.endsWith("{% include series-nav.html %}\n\n바뀐 본문\n"));
+});
+
+test("고쳐 쓰기: 시리즈 빼기, 썸네일 바꾸기·없애기, 태그 비우기", () => {
+  const noSeries = edited({ series: "", seriesTitle: "" });
+  assert.ok(!noSeries.includes("series:") && !noSeries.includes("series_title:") && !noSeries.includes("series-nav.html"));
+  const newImage = edited({ image: { path: "/assets/img/posts/new.png" } });
+  assert.ok(newImage.includes("image:\n  path: /assets/img/posts/new.png\n  alt: \"원래 제목\"\nseries: mlops-drift"));
+  const noImage = edited({ image: { path: "" } });
+  assert.ok(!noImage.includes("image:") && !noImage.includes("path:"));
+  assert.ok(!edited({ tags: [] }).includes("tags:"));
+});
+
+test("고쳐 쓰기: 없던 항목을 넣으면 머리말 끝에 붙는다", () => {
+  const p = W.parsePost("---\ntitle: 제목\ndate: 2026-01-01 00:00:00 +0900\n---\n본문\n");
+  const out = W.buildEditedPost({ entries: p.entries, liquid: p.liquid, original: p.data, title: "제목", categories: ["A"], tags: [], description: "요약",
+    image: { path: "" }, series: "s", seriesTitle: "S", body: p.body });
+  assert.equal(out, '---\ntitle: 제목\ndate: 2026-01-01 00:00:00 +0900\ncategories: ["A"]\ndescription: "요약"\nseries: s\nseries_title: "S"\n---\n\n{% include series-nav.html %}\n\n본문\n');
+});
+
+test("고쳐 쓰기: Liquid를 직접 쓴 글은 감싸지 않고, 이 화면이 감싼 글은 풀었다가 다시 감싼다", () => {
+  assert.ok(edited().includes("{% post_url 2026-11-08-b %}") && !edited().includes("{% raw %}"));
+  const made = W.buildPost({ title: "t", date: "2026-11-22 01:30:05 +0900", categories: [], tags: [], body: "값 ${{ a }} 와 {% endraw %} 글자" });
+  const p = W.parsePost(made);
+  assert.equal(p.body, "값 ${{ a }} 와 {% endraw %} 글자");
+  assert.equal(p.liquid, "auto");
+  const again = W.buildEditedPost({ entries: p.entries, liquid: p.liquid, original: p.data, title: "t", categories: [], tags: [], description: "", image: { mode: "keep" }, series: "", body: p.body });
+  assert.equal(W.parsePost(again).body, p.body);
+  assert.ok(again.includes("{% raw %}"));
+});
+
+test("올릴 파일 계획: 수정은 원래 경로에, 썸네일 유지면 글 파일 하나만", () => {
+  const p = W.parsePost(SAMPLE);
+  const edit = { path: "_posts/2026-11-08-a.md", entries: p.entries, liquid: p.liquid, original: p.data, image: p.data.image };
+  const s = { title: "새 제목", body: p.body, slug: "a", description: "원래 요약", categories: ["MLOps", "실습 시리즈"], tags: ["mlops", "series"],
+    series: { mode: "existing", key: "mlops-drift" }, image: { mode: "keep" } };
+  const plan = W.planFiles(s, { now: new Date("2026-12-01T00:00:00Z"), seriesList: [{ key: "mlops-drift", title: "MLOps 실습 시리즈" }], seriesYaml: "", edit });
+  assert.deepEqual(plan.files.map((f) => f.path), ["_posts/2026-11-08-a.md"]);
+  assert.ok(plan.content.includes('title: "새 제목"') && plan.content.includes("date: 2026-11-08 01:00:00 +0900") && plan.content.includes("path: /assets/img/posts/a.svg"));
+  const withCover = W.planFiles({ ...s, image: { mode: "auto", svg: "<svg/>" } }, { now: new Date(), seriesList: [{ key: "mlops-drift", title: "MLOps 실습 시리즈" }], seriesYaml: "", edit });
+  assert.deepEqual(withCover.files.map((f) => f.path), ["_posts/2026-11-08-a.md", "assets/img/posts/a.svg"]);
+});
+
+test("검사: 수정 중에는 자기 주소가 이미 있어도 된다", () => {
+  const s = { title: "제목", body: "본문", slug: "taken", description: "", series: { mode: "none" }, image: { mode: "keep" } };
+  assert.equal(W.validate(s, { seriesKeys: [], postUrls: ["/posts/taken/"] }).length, 1);
+  assert.deepEqual(W.validate(s, { seriesKeys: [], postUrls: ["/posts/taken/"], editing: true }), []);
+});
+
+test("저장소 파일 읽기: 토큰이 없으면 인증 헤더를 보내지 않고, sha를 함께 돌려준다", async () => {
+  let seen;
+  const fetchImpl = async (url, init) => { seen = init.headers; return { ok: true, status: 200, json: async () => ({ content: Buffer.from("본문").toString("base64"), sha: "abc" }) }; };
+  assert.deepEqual(await W.readRepoFileInfo({ repo: "o/r", branch: "main", path: "p", token: "", fetchImpl }), { text: "본문", sha: "abc" });
+  assert.ok(!("Authorization" in seen));
+  await W.readRepoFileInfo({ repo: "o/r", branch: "main", path: "p", token: "T", fetchImpl });
+  assert.equal(seen.Authorization, "Bearer T");
+  await assert.rejects(W.readRepoFileInfo({ repo: "o/r", branch: "main", path: "p", token: "", fetchImpl: async () => ({ ok: false, status: 403 }) }), /요청 한도/);
+});

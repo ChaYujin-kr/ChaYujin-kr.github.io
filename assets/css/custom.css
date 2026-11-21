@@ -274,3 +274,6 @@ html:root[data-bs-theme=dark] .rec-card { background: #1c1c1e; border-color: #2c
 .series-nav .series-nav-more { margin: .5rem 0 0; font-size: .85em; text-align: right; }
 @media (prefers-reduced-motion: reduce) { .series-thumb, .series-posts summary::after { transition: none; } .series-thumb:hover { transform: none; } }
 @media (prefers-contrast: more) { .series-thumb, .series-posts { border-color: currentColor; } }
+
+/* 글 페이지의 '수정' 링크 (글쓰기 화면을 열어 본 브라우저에서만 생김) */
+.post-edit-link { display: inline-block; margin-left: .75rem; font-size: .85rem; padding: .05rem .55rem; border: 1px solid var(--main-border-color, #d0d7de); border-radius: 999px; }

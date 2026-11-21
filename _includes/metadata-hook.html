@@ -251,5 +251,16 @@ document.addEventListener("DOMContentLoaded", () => {
     a.append(i, " ", span);
     li.append(a);
     nav.append(li);
+    {%- if page.layout == "post" %}
+    /* 글 페이지: 이 글을 글쓰기 화면에서 여는 '수정' 링크 */
+    const meta = document.querySelector("article header .post-meta") || document.querySelector("article header");
+    if (meta) {
+      const edit = document.createElement("a");
+      edit.className = "post-edit-link";
+      edit.href = {{ '/write/' | relative_url | jsonify }} + "?edit=" + encodeURIComponent({{ page.path | jsonify }});
+      edit.textContent = "수정";
+      meta.append(edit);
+    }
+    {%- endif %}
   }, { once: true });
 </script>

@@ -1,6 +1,7 @@
 /* 글쓰기 화면 (/write/)
  * - 왼쪽에 마크다운, 오른쪽에 미리보기 (marked + DOMPurify, 둘 다 저장소에 고정)
  * - 게시 창: 썸네일, 요약(기본은 본문 앞 100자), 시리즈 선택·새로 만들기, 주소, 카테고리, 태그
+ * - 기존 글 수정: '글 불러오기' 또는 /write/?edit=<파일 경로>. 다루지 않는 머리말 항목과 날짜는 그대로 둔다.
  * - 게시: GitHub API로 글·썸네일·시리즈 목록을 커밋 하나에 담아 올린다. 토큰은 이 브라우저에만 저장된다.
  *         토큰 없이 파일로 내려받을 수도 있다.
  * 순수 함수는 아래 api로 내보내 _tests/write.test.mjs에서 검사한다.
@@ -92,6 +93,112 @@
     return fm.join("\n") + "\n" + protectLiquid(String(p.body || "").replace(/\r/g, "").trim()) + "\n";
   }
 
+  /* ── 기존 글 읽기와 고쳐 쓰기 ── */
+
+  const MANAGED_KEYS = ["title", "categories", "tags", "description", "image", "series", "series_title"];
+  const SERIES_INCLUDE = "{% include series-nav.html %}";
+  const RAW_ESCAPE = "{% endraw %}{{ '{' }}% endraw %}{% raw %}";
+
+  /** YAML 한 줄 값: 큰따옴표, 작은따옴표, 따옴표 없는 값 */
+  function parseScalar(raw) {
+    const t = String(raw || "").trim();
+    if (t.startsWith('"')) { try { return String(JSON.parse(t)); } catch { return t.replace(/^"|"$/g, ""); } }
+    if (t.startsWith("'")) return t.replace(/^'|'$/g, "").replace(/''/g, "'");
+    return t.replace(/\s+#.*$/, "").trim();
+  }
+
+  /** [a, "b, c", d] 꼴의 목록을 쉼표로 나눈다 (따옴표 안의 쉼표는 지킨다) */
+  function parseFlowList(raw) {
+    const inner = String(raw).trim().replace(/^\[/, "").replace(/\]\s*(#.*)?$/, "");
+    const items = [];
+    let cur = "", quote = "";
+    for (const ch of inner) {
+      if (quote) { cur += ch; if (ch === quote) quote = ""; }
+      else if (ch === '"' || ch === "'") { quote = ch; cur += ch; }
+      else if (ch === ",") { items.push(cur); cur = ""; }
+      else cur += ch;
+    }
+    items.push(cur);
+    return items.map(parseScalar).filter(Boolean);
+  }
+
+  /**
+   * 글 파일을 머리말과 본문으로 나눈다. 머리말은 항목 단위로 원문 줄을 보관해서,
+   * 이 화면이 다루지 않는 항목(date, pin, math 등)을 저장할 때 그대로 되돌려 쓴다.
+   * @returns {entries:[{key, lines}], data:{title, categories, tags, description, image, series, seriesTitle}, body, liquid:'auto'|'keep'} 또는 null
+   */
+  function parsePost(text) {
+    const src = String(text || "").replace(/\r/g, "");
+    const m = src.match(/^---\n([\s\S]*?)\n---[ \t]*(?:\n|$)/);
+    if (!m) return null;
+    const entries = [];
+    for (const line of m[1].split("\n")) {
+      const k = line.match(/^([A-Za-z_][\w-]*):(.*)$/);
+      if (k) entries.push({ key: k[1], lines: [line] });
+      else if (entries.length && (/^\s+\S/.test(line) || /^\s*-\s/.test(line))) entries[entries.length - 1].lines.push(line);
+      else entries.push({ key: null, lines: [line] });
+    }
+    const find = (key) => entries.find((e) => e.key === key);
+    const rest = (e) => e.lines[0].slice(e.key.length + 1);
+    const scalar = (key) => { const e = find(key); return e ? parseScalar(rest(e)) : ""; };
+    const list = (key) => {
+      const e = find(key);
+      if (!e) return [];
+      const first = rest(e).trim();
+      if (first.startsWith("[")) return parseFlowList(first);
+      const items = e.lines.slice(1).map((l) => l.match(/^\s*-\s+(.*)$/)).filter(Boolean).map((x) => parseScalar(x[1]));
+      return items.length ? items : first ? [parseScalar(first)] : [];
+    };
+    let image = "";
+    const ie = find("image");
+    if (ie) {
+      const first = rest(ie).trim();
+      const nested = ie.lines.slice(1).map((l) => l.match(/^\s+path:\s*(.*)$/)).find(Boolean);
+      image = first ? parseScalar(first) : nested ? parseScalar(nested[1]) : "";
+    }
+    let body = src.slice(m[0].length).replace(/^\n+/, "");
+    if (body.startsWith(SERIES_INCLUDE)) body = body.slice(SERIES_INCLUDE.length).replace(/^\n+/, "");
+    body = body.replace(/\s+$/, "");
+    let liquid = "auto";
+    const wrapped = body.match(/^\{% raw %\}\n([\s\S]*)\n\{% endraw %\}$/);
+    if (wrapped && !/\{%-?\s*(raw|endraw)\s*-?%\}/.test(wrapped[1].split(RAW_ESCAPE).join(""))) body = wrapped[1].split(RAW_ESCAPE).join("{% endraw %}");
+    else if (/\{\{|\{%/.test(body)) liquid = "keep"; /* post_url 같은 Liquid를 직접 쓴 글: 감싸면 깨지므로 그대로 둔다 */
+    return { entries, body, liquid,
+      data: { title: scalar("title"), categories: list("categories"), tags: list("tags"), description: scalar("description"), image, series: scalar("series"), seriesTitle: scalar("series_title") } };
+  }
+
+  /**
+   * 고친 글 파일의 내용. 다루는 항목만 새로 쓰고 나머지 머리말 줄은 원문 그대로 둔다.
+   * @param p {entries, liquid, original(parsePost의 data), title, categories[], tags[], description, image:{mode:'keep'}|{path}, series, seriesTitle, body}
+   */
+  function buildEditedPost(p) {
+    const fresh = { title: [`title: ${yamlStr(p.title)}`] };
+    if (p.categories && p.categories.length) fresh.categories = [`categories: ${yamlList(p.categories)}`];
+    if (p.tags && p.tags.length) fresh.tags = [`tags: ${yamlList(p.tags)}`];
+    if (p.description) fresh.description = [`description: ${yamlStr(p.description)}`];
+    const keepImage = p.image && p.image.mode === "keep";
+    if (!keepImage && p.image && p.image.path) fresh.image = ["image:", `  path: ${p.image.path}`, `  alt: ${yamlStr(p.title)}`];
+    if (p.series) { fresh.series = [`series: ${p.series}`]; fresh.series_title = [`series_title: ${yamlStr(p.seriesTitle || p.series)}`]; }
+    /* 값이 그대로인 항목은 원문 줄을 그대로 둔다 (따옴표 모양 같은 사소한 차이로 변경 내역이 생기지 않게) */
+    const o = p.original || {};
+    const same = { title: o.title === p.title, categories: JSON.stringify(o.categories) === JSON.stringify(p.categories || []),
+      tags: JSON.stringify(o.tags) === JSON.stringify(p.tags || []), description: o.description === (p.description || ""),
+      image: keepImage, series: o.series === (p.series || ""), series_title: o.seriesTitle === (p.series ? p.seriesTitle || p.series : "") };
+    const out = [], seen = new Set();
+    for (const e of p.entries) {
+      if (!MANAGED_KEYS.includes(e.key) || (p.original && same[e.key])) { out.push(...e.lines); if (e.key) seen.add(e.key); continue; }
+      seen.add(e.key);
+      if (fresh[e.key]) out.push(...fresh[e.key]);
+    }
+    for (const key of MANAGED_KEYS) if (fresh[key] && !seen.has(key)) out.push(...fresh[key]);
+    const raw = String(p.body || "").replace(/\r/g, "").trim();
+    const body = p.liquid === "keep" ? raw : protectLiquid(raw);
+    return `---\n${out.join("\n")}\n---\n\n${p.series ? SERIES_INCLUDE + "\n\n" : ""}${body}\n`;
+  }
+
+  /** _posts/2026-11-22-my-post.md → my-post */
+  const slugFromPath = (path) => (String(path).match(/^_posts\/\d{4}-\d{2}-\d{2}-(.+)\.(?:md|markdown)$/) || [])[1] || "";
+
   const postPath = (day, slug) => `_posts/${day}-${slug}.md`;
   const postUrl = (slug) => `/posts/${slug}/`;
 
@@ -134,7 +241,7 @@
     if (!String(s.title || "").trim()) errors.push("제목을 입력하세요.");
     if (!String(s.body || "").trim()) errors.push("본문이 비어 있습니다.");
     if (!SLUG_RE.test(s.slug || "")) errors.push("주소는 영문 소문자, 숫자, 하이픈(-)만 쓸 수 있습니다. 예: my-first-post");
-    else if ((known.postUrls || []).includes(postUrl(s.slug))) errors.push("같은 주소의 글이 이미 있습니다. 주소를 바꾸세요.");
+    else if (!known.editing && (known.postUrls || []).includes(postUrl(s.slug))) errors.push("같은 주소의 글이 이미 있습니다. 주소를 바꾸세요.");
     if (Array.from(s.description || "").length > SUMMARY_MAX) errors.push(`요약은 ${SUMMARY_MAX}자까지입니다.`);
     const sr = s.series || { mode: "none" };
     if (sr.mode === "new") {
@@ -209,27 +316,35 @@
     return `GitHub 오류 ${status}${detail ? ": " + detail : ""}`;
   }
 
-  /** 저장소의 파일 내용을 읽는다. 없으면 null. */
-  async function readRepoFile(o) {
+  /** 저장소의 파일을 읽는다. 없으면 null. 공개 저장소라 토큰이 없어도 읽을 수 있다. @returns {text, sha} */
+  async function readRepoFileInfo(o) {
     const fetchImpl = o.fetchImpl || root.fetch.bind(root);
-    const res = await fetchImpl(`https://api.github.com/repos/${o.repo}/contents/${o.path}?ref=${encodeURIComponent(o.branch)}`, {
-      headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${o.token}`, "X-GitHub-Api-Version": "2022-11-28" },
-    });
+    const headers = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" };
+    if (o.token) headers.Authorization = `Bearer ${o.token}`;
+    const res = await fetchImpl(`https://api.github.com/repos/${o.repo}/contents/${o.path}?ref=${encodeURIComponent(o.branch)}`, { headers, cache: "no-store" });
     if (res.status === 404) return null;
-    if (!res.ok) { const e = new Error(explainStatus(res.status, "")); e.status = res.status; throw e; }
-    return b64decodeUtf8((await res.json()).content);
+    if (!res.ok) {
+      const limited = res.status === 403 && !o.token;
+      const e = new Error(limited ? "GitHub 요청 한도를 넘었습니다. 토큰을 입력하거나 잠시 뒤에 다시 시도하세요." : explainStatus(res.status, ""));
+      e.status = res.status; throw e;
+    }
+    const data = await res.json();
+    return { text: b64decodeUtf8(data.content), sha: data.sha };
   }
+  /** 저장소의 파일 내용만 읽는다. 없으면 null. */
+  async function readRepoFile(o) { const info = await readRepoFileInfo(o); return info ? info.text : null; }
 
   /**
    * 입력 상태에서 올릴 파일 목록을 만든다 (네트워크 없음).
    * @param s {title, body, slug, description, categories[], tags[], series:{mode,key,title,description}, image:{mode, ext, base64, svg}}
-   * @param ctx {now, seriesList:[{key,title}], seriesYaml}
+   * @param ctx {now, seriesList:[{key,title}], seriesYaml, edit:{path, entries, liquid, original, image}}  edit가 있으면 기존 글 수정
    */
   function planFiles(s, ctx) {
     const stamp = kstStamp(ctx.now);
     const files = [];
     let image = "";
-    if (s.image && s.image.mode === "auto") {
+    if (ctx.edit && s.image && s.image.mode === "keep") image = ctx.edit.image || "";
+    else if (s.image && s.image.mode === "auto") {
       image = `/assets/img/posts/${s.slug}.svg`;
       files.push({ path: image.slice(1), base64: b64utf8(s.image.svg) });
     } else if (s.image && s.image.mode === "upload") {
@@ -245,15 +360,18 @@
       series = sr.key; seriesTitle = sr.title.trim();
       files.push({ path: "_data/series.yml", base64: b64utf8(appendSeries(ctx.seriesYaml, { key: sr.key, title: seriesTitle, description: (sr.description || "").trim(), image })) });
     }
-    const content = buildPost({ title: s.title.trim(), date: stamp.full, categories: s.categories, tags: s.tags,
-      description: (s.description || "").trim(), image, series, seriesTitle, body: s.body });
-    const path = postPath(stamp.day, s.slug);
+    const common = { title: s.title.trim(), categories: s.categories, tags: s.tags, description: (s.description || "").trim(), series, seriesTitle, body: s.body };
+    const content = ctx.edit
+      ? buildEditedPost({ ...common, entries: ctx.edit.entries, liquid: ctx.edit.liquid, original: ctx.edit.original, image: s.image && s.image.mode === "keep" ? { mode: "keep" } : { path: image } })
+      : buildPost({ ...common, date: stamp.full, image });
+    const path = ctx.edit ? ctx.edit.path : postPath(stamp.day, s.slug);
     files.unshift({ path, base64: b64utf8(content) });
     return { files, path, content, url: postUrl(s.slug) };
   }
 
   const api = { SUMMARY_CHARS, SUMMARY_MAX, COVER_COLORS, plainText, summarize, slugify, kstStamp, yamlStr, splitList, protectLiquid,
-    buildPost, postPath, postUrl, appendSeries, coverSvg, validate, b64utf8, b64decodeUtf8, commitFiles, readRepoFile, planFiles, explainStatus };
+    buildPost, postPath, postUrl, appendSeries, coverSvg, validate, b64utf8, b64decodeUtf8, commitFiles, readRepoFile, readRepoFileInfo, planFiles, explainStatus,
+    parseScalar, parseFlowList, parsePost, buildEditedPost, slugFromPath };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   const doc = root.document;
   if (!doc || !doc.getElementById("write-app")) return;
@@ -280,11 +398,14 @@
     seriesList: $("w-series-list"), seriesNew: $("w-series-new"), newTitle: $("w-new-title"), newKey: $("w-new-key"), newDesc: $("w-new-desc"),
     thumb: $("w-thumb"), thumbFile: $("w-thumb-file"), thumbAuto: $("w-thumb-auto"), coverLabel: $("w-cover-label"),
     coverNumber: $("w-cover-number"), coverText: $("w-cover-text"), coverColors: $("w-cover-colors"),
-    token: $("w-token"), remember: $("w-remember"), forget: $("w-forget"), publish: $("w-publish"), download: $("w-download"), cancel: $("w-cancel") };
+    token: $("w-token"), remember: $("w-remember"), forget: $("w-forget"), publish: $("w-publish"), download: $("w-download"), cancel: $("w-cancel"),
+    load: $("w-load"), editing: $("w-editing"), fresh: $("w-new"), thumbKeep: $("w-thumb-keep"), dialogTitle: $("w-dialog-title"),
+    loadDialog: $("w-load-dialog"), loadSearch: $("w-load-search"), loadList: $("w-load-list"), loadError: $("w-load-error"), loadClose: $("w-load-close") };
 
-  const cfg = { repo: "", branch: "main", series: [], categories: [], tags: [], postUrls: [] };
+  const cfg = { repo: "", branch: "main", series: [], categories: [], tags: [], postUrls: [], posts: [] };
   const ui = { summaryEdited: false, slugEdited: false, coverEdited: { label: false, number: false, text: false }, newKeyEdited: false,
-    color: 0, upload: null, busy: false };
+    color: 0, upload: null, busy: false,
+    edit: null /* 수정 중인 글: {path, slug, sha, entries, liquid, original, image} */ };
 
   store.set("write-enabled", "1"); /* 이 브라우저에서는 사이드바에 '글쓰기' 링크가 보인다 (metadata-hook.html) */
 
@@ -305,7 +426,7 @@
   /* 임시 저장 */
   let saveTimer = 0;
   function saveDraft() {
-    store.set(DRAFT_KEY, JSON.stringify({ title: el.title.value, body: el.body.value, savedAt: Date.now() }));
+    store.set(DRAFT_KEY, JSON.stringify({ title: el.title.value, body: el.body.value, edit: ui.edit, savedAt: Date.now() }));
     el.status.textContent = "임시 저장됨 " + new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
   }
   function onEdit() {
@@ -317,7 +438,10 @@
   function loadDraft() {
     try {
       const d = JSON.parse(store.get(DRAFT_KEY) || "null");
-      if (d) { el.title.value = d.title || ""; el.body.value = d.body || ""; el.status.textContent = "임시 저장된 글을 불러왔습니다"; }
+      if (d && (d.title || d.body)) {
+        el.title.value = d.title || ""; el.body.value = d.body || ""; el.status.textContent = "임시 저장된 글을 불러왔습니다";
+        if (d.edit && d.edit.path && Array.isArray(d.edit.entries)) ui.edit = d.edit;
+      }
     } catch { /* 깨진 임시 저장은 무시 */ }
   }
 
@@ -354,7 +478,8 @@
     el.thumbAuto.hidden = mode !== "auto";
     el.thumbFile.hidden = mode !== "upload";
     el.thumb.classList.toggle("w-thumb-none", mode === "none");
-    if (mode === "auto") el.thumb.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(currentSvg());
+    if (mode === "keep" && ui.edit && ui.edit.image) el.thumb.src = ui.edit.image;
+    else if (mode === "auto") el.thumb.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(currentSvg());
     else if (mode === "upload" && ui.upload) el.thumb.src = ui.upload.dataUrl;
     else el.thumb.removeAttribute("src");
   }
@@ -371,7 +496,8 @@
 
   function openDialog() {
     if (!ui.summaryEdited) el.summary.value = summarize(el.body.value);
-    if (!ui.slugEdited) el.slug.value = slugify(el.title.value);
+    if (ui.edit) el.slug.value = ui.edit.slug;
+    else if (!ui.slugEdited) el.slug.value = slugify(el.title.value);
     coverDefaults();
     renderSummaryCount(); renderUrlHint(); renderThumb();
     el.errors.hidden = true; el.result.hidden = true; el.form.hidden = false;
@@ -380,7 +506,8 @@
 
   function collect() {
     const mode = selectedThumb();
-    const image = mode === "auto" ? { mode, svg: currentSvg() }
+    const image = mode === "keep" ? { mode: ui.edit && ui.edit.image ? "keep" : "none" }
+      : mode === "auto" ? { mode, svg: currentSvg() }
       : mode === "upload" && ui.upload ? { mode, type: ui.upload.type, size: ui.upload.size, ext: IMAGE_TYPES[ui.upload.type], base64: ui.upload.base64 }
       : { mode: mode === "upload" ? "none" : mode };
     return { title: el.title.value, body: el.body.value, slug: el.slug.value.trim(), description: el.summary.value,
@@ -398,12 +525,12 @@
   function setBusy(b, label) {
     ui.busy = b;
     [el.publish, el.download, el.cancel].forEach((x) => { x.disabled = b; });
-    el.publish.textContent = b ? label || "게시 중…" : "게시하기";
+    el.publish.textContent = b ? label || "게시 중…" : ui.edit ? "수정 게시" : "게시하기";
   }
 
   function check() {
     const s = collect();
-    const errors = validate(s, { seriesKeys: cfg.series.map((x) => x.key), postUrls: cfg.postUrls });
+    const errors = validate(s, { seriesKeys: cfg.series.map((x) => x.key), postUrls: cfg.postUrls, editing: !!ui.edit });
     showErrors(errors);
     return errors.length ? null : s;
   }
@@ -425,18 +552,22 @@
         seriesYaml = await readRepoFile({ ...base, path: "_data/series.yml" }) || "";
         if (new RegExp(`^- key: ${s.series.key}\\s*$`, "m").test(seriesYaml)) throw new Error("같은 키의 시리즈가 이미 저장소에 있습니다.");
       }
-      const plan = planFiles(s, { now: new Date(), seriesList: cfg.series, seriesYaml });
-      if (await readRepoFile({ ...base, path: plan.path }) !== null) throw new Error("같은 이름의 글 파일이 이미 저장소에 있습니다. 주소를 바꾸세요.");
-      const done = await commitFiles({ ...base, message: `글 게시: ${s.title.trim()}`, files: plan.files });
+      const editing = ui.edit;
+      const plan = planFiles(s, { now: new Date(), seriesList: cfg.series, seriesYaml, edit: editing });
+      const current = await readRepoFileInfo({ ...base, path: plan.path });
+      if (!editing && current !== null) throw new Error("같은 이름의 글 파일이 이미 저장소에 있습니다. 주소를 바꾸세요.");
+      if (editing && current === null) throw new Error("저장소에서 이 글 파일을 찾지 못했습니다. 지워졌거나 이름이 바뀌었습니다.");
+      if (editing && current.sha !== editing.sha) throw new Error("불러온 뒤에 저장소의 글이 바뀌었습니다. 내용을 따로 복사해 두고 글을 다시 불러오세요.");
+      const done = await commitFiles({ ...base, message: `${editing ? "글 수정" : "글 게시"}: ${s.title.trim()}`, files: plan.files });
       if (el.remember.checked) { store.set(TOKEN_KEY, token); session.del(TOKEN_KEY); } else { session.set(TOKEN_KEY, token); store.del(TOKEN_KEY); }
       store.del(DRAFT_KEY);
-      const h = doc.createElement("h2"); h.textContent = "게시했습니다";
+      const h = doc.createElement("h2"); h.textContent = editing ? "수정했습니다" : "게시했습니다";
       const again = doc.createElement("button"); again.type = "button"; again.textContent = "새 글 쓰기";
       again.addEventListener("click", () => { root.location.reload(); });
       showResult([h, para("사이트에 반영되기까지 1~2분 걸립니다. 글 안의 링크나 이미지 주소가 깨져 있으면 배포 검사에서 멈추니, 글이 보이지 않으면 배포 진행 상황을 확인하세요."),
-        para("글 주소: ", link(plan.url, root.location.origin + plan.url)),
+        para("글 주소: ", link(editing ? editing.url || plan.url : plan.url, root.location.origin + (editing ? editing.url || plan.url : plan.url))),
         para("커밋: ", link(done.url, done.sha.slice(0, 7)), " · ", link(`https://github.com/${cfg.repo}/actions`, "배포 진행 상황")), again]);
-      el.title.value = ""; el.body.value = ""; render();
+      el.title.value = ""; el.body.value = ""; ui.edit = null; render(); renderEditState();
     } catch (e) {
       showErrors([e && e.message ? e.message : "게시하지 못했습니다."]);
     } finally { setBusy(false); }
@@ -445,14 +576,14 @@
   function download() {
     const s = check();
     if (!s) return;
-    const plan = planFiles(s, { now: new Date(), seriesList: cfg.series, seriesYaml: "" });
+    const plan = planFiles(s, { now: new Date(), seriesList: cfg.series, seriesYaml: "", edit: ui.edit });
     const a = doc.createElement("a");
     a.href = URL.createObjectURL(new Blob([plan.content], { type: "text/markdown;charset=utf-8" }));
     a.download = plan.path.split("/").pop();
     doc.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     const notes = [`받은 파일을 저장소의 ${plan.path} 에 넣고 커밋하면 게시됩니다.`];
-    if (s.image.mode !== "none") notes.push("썸네일 파일은 내려받기에 포함되지 않습니다. 머리말의 image 경로에 맞춰 따로 넣으세요.");
+    if (s.image.mode !== "none" && s.image.mode !== "keep") notes.push("썸네일 파일은 내려받기에 포함되지 않습니다. 머리말의 image 경로에 맞춰 따로 넣으세요.");
     if (s.series.mode === "new") notes.push("새 시리즈는 _data/series.yml 에 직접 추가해야 시리즈 탭에 소개가 나옵니다.");
     showErrors(notes);
   }
@@ -466,6 +597,81 @@
       renderThumb();
     };
     reader.readAsDataURL(file);
+  }
+
+  /* ── 기존 글 수정 ── */
+
+  function renderEditState() {
+    const on = !!ui.edit;
+    el.editing.hidden = !on; el.fresh.hidden = !on; el.thumbKeep.hidden = !(on && ui.edit.image);
+    el.editing.textContent = on ? `수정 중: ${ui.edit.path.replace(/^_posts\//, "")}` : "";
+    el.editing.title = on ? ui.edit.path : "";
+    el.open.textContent = on ? "수정 게시" : "게시하기";
+    el.publish.textContent = on ? "수정 게시" : "게시하기";
+    el.dialogTitle.textContent = on ? "수정 설정" : "게시 설정";
+    el.slug.readOnly = on;
+  }
+
+  /** 불러온 글의 값을 게시 창에 채운다 (시리즈 목록이 만들어진 뒤에 불러야 한다) */
+  function applyEditMeta() {
+    if (!ui.edit) return;
+    const o = ui.edit.original;
+    el.summary.value = o.description || ""; ui.summaryEdited = true;
+    el.slug.value = ui.edit.slug; ui.slugEdited = true;
+    el.cat1.value = o.categories[0] || ""; el.cat2.value = o.categories[1] || "";
+    el.tags.value = (o.tags || []).join(", ");
+    const radio = Array.from(el.form.querySelectorAll('input[name="series"]')).find((r) => r.value === (o.series || ""));
+    if (radio) radio.checked = true;
+    el.seriesNew.hidden = true;
+    const thumb = el.form.querySelector(`input[name="thumb"][value="${ui.edit.image ? "keep" : "none"}"]`);
+    if (thumb) thumb.checked = true;
+    ui.coverEdited = { label: false, number: false, text: false };
+  }
+
+  function resetToNew() {
+    ui.edit = null; ui.summaryEdited = false; ui.slugEdited = false; ui.upload = null;
+    el.title.value = ""; el.body.value = ""; el.summary.value = ""; el.slug.value = ""; el.cat1.value = ""; el.cat2.value = ""; el.tags.value = "";
+    const none = el.form.querySelector('input[name="series"][value=""]'); if (none) none.checked = true;
+    el.form.querySelector('input[name="thumb"][value="auto"]').checked = true;
+    el.seriesNew.hidden = true;
+    store.del(DRAFT_KEY); render(); renderEditState();
+    el.status.textContent = "";
+    if (root.history && root.location.search) root.history.replaceState(null, "", root.location.pathname);
+  }
+
+  async function loadPost(path) {
+    const item = cfg.posts.find((x) => x.path === path);
+    if (!item) throw new Error("목록에 없는 글입니다.");
+    if ((el.title.value.trim() || el.body.value.trim()) && !root.confirm("쓰던 내용이 사라집니다. 이 글을 불러올까요?")) return false;
+    const info = await readRepoFileInfo({ repo: cfg.repo, branch: cfg.branch, path, token: el.token.value.trim() });
+    if (!info) throw new Error("저장소에서 이 글 파일을 찾지 못했습니다.");
+    const parsed = parsePost(info.text);
+    if (!parsed) throw new Error("이 글의 머리말을 읽지 못했습니다.");
+    ui.edit = { path, slug: slugFromPath(path), url: item.url, sha: info.sha, entries: parsed.entries, liquid: parsed.liquid, original: parsed.data, image: parsed.data.image };
+    ui.upload = null;
+    el.title.value = parsed.data.title; el.body.value = parsed.body;
+    applyEditMeta(); render(); renderEditState(); saveDraft();
+    el.status.textContent = parsed.liquid === "keep" ? "불러왔습니다 · 이 글은 Liquid 태그를 직접 씁니다" : "불러왔습니다";
+    return true;
+  }
+
+  function renderLoadList() {
+    const q = el.loadSearch.value.trim().toLowerCase();
+    el.loadList.innerHTML = "";
+    const hits = cfg.posts.filter((x) => !q || x.title.toLowerCase().includes(q) || x.path.toLowerCase().includes(q));
+    hits.forEach((x) => {
+      const li = doc.createElement("li"), b = doc.createElement("button"), t = doc.createElement("span"), d = doc.createElement("small");
+      b.type = "button"; t.textContent = x.title; d.textContent = x.date;
+      b.append(t, d);
+      b.addEventListener("click", async () => {
+        el.loadError.hidden = true; b.disabled = true;
+        try { if (await loadPost(x.path)) el.loadDialog.close(); }
+        catch (e) { el.loadError.textContent = e && e.message ? e.message : "불러오지 못했습니다."; el.loadError.hidden = false; }
+        finally { b.disabled = false; }
+      });
+      li.append(b); el.loadList.append(li);
+    });
+    if (!hits.length) { const li = doc.createElement("li"); li.className = "w-load-empty"; li.textContent = "찾는 글이 없습니다."; el.loadList.append(li); }
   }
 
   function buildSeriesList() {
@@ -507,10 +713,15 @@
     fillDatalist("w-cat1-list", cfg.categories.map((c) => c[0]).filter((v, i, a) => v && a.indexOf(v) === i));
     fillDatalist("w-cat2-list", cfg.categories.map((c) => c[1]).filter((v, i, a) => v && a.indexOf(v) === i));
     fillDatalist("w-tags-list", cfg.tags);
+    if (ui.edit) applyEditMeta();
+    const want = new URLSearchParams(root.location.search).get("edit");
+    if (want && !(ui.edit && ui.edit.path === want)) {
+      try { await loadPost(want); } catch (e) { el.status.textContent = e && e.message ? e.message : "글을 불러오지 못했습니다"; }
+    }
   }
 
   function init() {
-    loadDraft(); render(); buildColors();
+    loadDraft(); render(); buildColors(); renderEditState();
     const saved = session.get(TOKEN_KEY) || store.get(TOKEN_KEY);
     if (saved) { el.token.value = saved; el.remember.checked = !!store.get(TOKEN_KEY); }
     loadConfig();
@@ -530,6 +741,10 @@
       el.toggle.setAttribute("aria-pressed", String(on));
     });
     el.open.addEventListener("click", openDialog);
+    el.load.addEventListener("click", () => { el.loadSearch.value = ""; el.loadError.hidden = true; renderLoadList(); el.loadDialog.showModal(); el.loadSearch.focus(); });
+    el.loadSearch.addEventListener("input", renderLoadList);
+    el.loadClose.addEventListener("click", () => el.loadDialog.close());
+    el.fresh.addEventListener("click", () => { if (root.confirm("수정을 그만두고 새 글을 시작할까요? 쓰던 내용은 사라집니다.")) resetToNew(); });
     el.cancel.addEventListener("click", () => el.dialog.close());
     el.dialog.addEventListener("cancel", (e) => { if (ui.busy) e.preventDefault(); });
 
