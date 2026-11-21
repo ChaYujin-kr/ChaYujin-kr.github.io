@@ -30,6 +30,11 @@ sitemap: false
   <main class="w-main">
     <section class="w-pane w-edit" aria-label="편집">
       <input id="w-title" class="w-title" type="text" placeholder="제목을 입력하세요" aria-label="제목" autocomplete="off" maxlength="120">
+      <div class="w-tools">
+        <button type="button" id="w-image" class="w-ghost w-small">이미지 넣기</button>
+        <input id="w-image-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" multiple hidden>
+        <small>붙여넣기나 끌어다 놓기도 됩니다. 게시할 때 글과 함께 올라갑니다.</small>
+      </div>
       <textarea id="w-body" class="w-body" placeholder="마크다운으로 내용을 적어 보세요…" aria-label="본문 (마크다운)" spellcheck="false"></textarea>
     </section>
     <section class="w-pane w-view" aria-label="미리보기">

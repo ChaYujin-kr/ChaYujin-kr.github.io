@@ -312,3 +312,38 @@ test("저장소 파일 읽기: 토큰이 없으면 인증 헤더를 보내지 �
   assert.equal(seen.Authorization, "Bearer T");
   await assert.rejects(W.readRepoFileInfo({ repo: "o/r", branch: "main", path: "p", token: "", fetchImpl: async () => ({ ok: false, status: 403 }) }), /요청 한도/);
 });
+
+/* ── 본문 이미지 ── */
+
+test("본문 이미지 이름: 영문·숫자만 남기고 꼬리표와 확장자를 붙인다", () => {
+  assert.equal(W.uploadName("My Screenshot (1).PNG", "image/png", "ab12c"), "my-screenshot-1-ab12c.png");
+  assert.equal(W.uploadName("스크린샷.jpg", "image/jpeg", "ab12c"), "image-ab12c.jpg");
+  assert.equal(W.uploadName("", "image/webp", "x"), "image-x.webp");
+});
+
+test("본문 이미지: 쓰인 것만 경로를 바꾸고 올릴 목록에 넣는다", () => {
+  const body = '![a](upload:a-1.png)\n\n다시 ![a](upload:a-1.png "제목") 그리고 <img src="upload:b-2.jpg" width="300">\n\n![없음](upload:gone-9.png)';
+  assert.deepEqual(W.uploadRefs(body), ["a-1.png", "b-2.jpg", "gone-9.png"]);
+  const r = W.resolveUploads(body, "my-post", [{ name: "a-1.png", base64: "QQ==" }, { name: "b-2.jpg", base64: "Qg==" }, { name: "unused-3.png", base64: "Qw==" }]);
+  assert.equal(r.body, '![a](/assets/img/posts/my-post/a-1.png)\n\n다시 ![a](/assets/img/posts/my-post/a-1.png "제목") 그리고 <img src="/assets/img/posts/my-post/b-2.jpg" width="300">\n\n![없음](upload:gone-9.png)');
+  assert.deepEqual(r.files, [{ path: "assets/img/posts/my-post/a-1.png", base64: "QQ==" }, { path: "assets/img/posts/my-post/b-2.jpg", base64: "Qg==" }]);
+  assert.deepEqual(r.missing, ["gone-9.png"]);
+  assert.deepEqual(W.resolveUploads("이미지 없는 글 (upload 라는 낱말)", "p", []), { body: "이미지 없는 글 (upload 라는 낱말)", files: [], missing: [] });
+});
+
+test("올릴 파일 계획: 본문 이미지는 글과 같은 커밋에, 요약에는 이미지 문법이 들어가지 않는다", () => {
+  const s = { title: "글", body: "첫 줄\n\n![그림](upload:pic-1.png)\n", slug: "with-image", description: "", categories: [], tags: [],
+    series: { mode: "none" }, image: { mode: "none" }, uploads: [{ name: "pic-1.png", base64: "QUJD" }] };
+  const plan = W.planFiles(s, { now: new Date("2026-11-21T16:30:05Z"), seriesList: [], seriesYaml: "" });
+  assert.deepEqual(plan.files.map((f) => f.path), ["_posts/2026-11-22-with-image.md", "assets/img/posts/with-image/pic-1.png"]);
+  assert.ok(plan.content.includes("![그림](/assets/img/posts/with-image/pic-1.png)") && !plan.content.includes("upload:"));
+  assert.equal(W.summarize(s.body), "첫 줄");
+});
+
+test("검사: 본문이 가리키는 이미지가 브라우저에 없으면 막는다", () => {
+  const s = { title: "제목", body: "본문", slug: "p", description: "", series: { mode: "none" }, image: { mode: "none" }, missingUploads: ["gone-9.png"] };
+  const errors = W.validate(s, { seriesKeys: [], postUrls: [] });
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /gone-9\.png/);
+  assert.deepEqual(W.validate({ ...s, missingUploads: [] }, { seriesKeys: [], postUrls: [] }), []);
+});

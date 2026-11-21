@@ -2,6 +2,8 @@
  * - 왼쪽에 마크다운, 오른쪽에 미리보기 (marked + DOMPurify, 둘 다 저장소에 고정)
  * - 게시 창: 썸네일, 요약(기본은 본문 앞 100자), 시리즈 선택·새로 만들기, 주소, 카테고리, 태그
  * - 기존 글 수정: '글 불러오기' 또는 /write/?edit=<파일 경로>. 다루지 않는 머리말 항목과 날짜는 그대로 둔다.
+ * - 본문 이미지: 버튼·붙여넣기·끌어다 놓기. 본문에는 (upload:이름)으로 적어 두고 파일은 이 브라우저(IndexedDB)에 보관했다가,
+ *   게시할 때 assets/img/posts/<주소>/ 아래에 글과 같은 커밋으로 올리고 경로를 바꿔 쓴다.
  * - 게시: GitHub API로 글·썸네일·시리즈 목록을 커밋 하나에 담아 올린다. 토큰은 이 브라우저에만 저장된다.
  *         토큰 없이 파일로 내려받을 수도 있다.
  * 순수 함수는 아래 api로 내보내 _tests/write.test.mjs에서 검사한다.
@@ -229,6 +231,41 @@
     return parts.join("\n");
   }
 
+  /* ── 본문 이미지 ── */
+
+  const UPLOAD_REF = /(["(])upload:([A-Za-z0-9][\w.-]*)/g;
+  const BODY_IMAGE_MAX_WIDTH = 1600;
+
+  /** 올린 파일의 저장 이름: 원래 이름의 영문·숫자 + 겹치지 않게 하는 짧은 꼬리표 + 확장자 */
+  function uploadName(original, type, tag) {
+    const base = slugify(String(original || "").replace(/\.[^.]*$/, "")).slice(0, 30).replace(/-+$/, "") || "image";
+    return `${base}-${tag}.${IMAGE_TYPES[type]}`;
+  }
+
+  /** 본문에서 쓰인 upload: 이름들 (나온 순서, 중복 없이) */
+  function uploadRefs(body) {
+    const names = [];
+    for (const m of String(body || "").matchAll(UPLOAD_REF)) if (!names.includes(m[2])) names.push(m[2]);
+    return names;
+  }
+
+  /**
+   * 본문의 (upload:이름)을 게시될 경로로 바꾸고, 올릴 파일 목록을 만든다. 본문에서 쓰지 않는 파일은 올리지 않는다.
+   * @param uploads [{name, base64}]
+   * @returns {body, files:[{path, base64}], missing:[이름]}
+   */
+  function resolveUploads(body, slug, uploads) {
+    const files = [], missing = [];
+    const out = String(body || "").replace(UPLOAD_REF, (whole, open, name) => {
+      const u = (uploads || []).find((x) => x.name === name);
+      if (!u) { if (!missing.includes(name)) missing.push(name); return whole; }
+      const path = `assets/img/posts/${slug}/${name}`;
+      if (!files.some((f) => f.path === path)) files.push({ path, base64: u.base64 });
+      return `${open}/${path}`;
+    });
+    return { body: out, files, missing };
+  }
+
   /* ── 검사 ── */
 
   /**
@@ -255,6 +292,7 @@
       if (!IMAGE_TYPES[im.type]) errors.push("썸네일은 PNG, JPG, WebP, GIF, SVG 파일만 올릴 수 있습니다.");
       else if (im.size > IMAGE_MAX_BYTES) errors.push("썸네일 파일은 2MB 이하여야 합니다.");
     }
+    if (s.missingUploads && s.missingUploads.length) errors.push(`본문의 이미지 파일을 이 브라우저에서 찾지 못했습니다: ${s.missingUploads.join(", ")}. 그 이미지를 다시 넣거나 본문에서 지우세요.`);
     return errors;
   }
 
@@ -336,7 +374,7 @@
 
   /**
    * 입력 상태에서 올릴 파일 목록을 만든다 (네트워크 없음).
-   * @param s {title, body, slug, description, categories[], tags[], series:{mode,key,title,description}, image:{mode, ext, base64, svg}}
+   * @param s {title, body, slug, description, categories[], tags[], series:{mode,key,title,description}, image:{mode, ext, base64, svg}, uploads:[{name, base64}]}
    * @param ctx {now, seriesList:[{key,title}], seriesYaml, edit:{path, entries, liquid, original, image}}  edit가 있으면 기존 글 수정
    */
   function planFiles(s, ctx) {
@@ -360,7 +398,9 @@
       series = sr.key; seriesTitle = sr.title.trim();
       files.push({ path: "_data/series.yml", base64: b64utf8(appendSeries(ctx.seriesYaml, { key: sr.key, title: seriesTitle, description: (sr.description || "").trim(), image })) });
     }
-    const common = { title: s.title.trim(), categories: s.categories, tags: s.tags, description: (s.description || "").trim(), series, seriesTitle, body: s.body };
+    const up = resolveUploads(s.body, s.slug, s.uploads);
+    files.push(...up.files);
+    const common = { title: s.title.trim(), categories: s.categories, tags: s.tags, description: (s.description || "").trim(), series, seriesTitle, body: up.body };
     const content = ctx.edit
       ? buildEditedPost({ ...common, entries: ctx.edit.entries, liquid: ctx.edit.liquid, original: ctx.edit.original, image: s.image && s.image.mode === "keep" ? { mode: "keep" } : { path: image } })
       : buildPost({ ...common, date: stamp.full, image });
@@ -371,7 +411,7 @@
 
   const api = { SUMMARY_CHARS, SUMMARY_MAX, COVER_COLORS, plainText, summarize, slugify, kstStamp, yamlStr, splitList, protectLiquid,
     buildPost, postPath, postUrl, appendSeries, coverSvg, validate, b64utf8, b64decodeUtf8, commitFiles, readRepoFile, readRepoFileInfo, planFiles, explainStatus,
-    parseScalar, parseFlowList, parsePost, buildEditedPost, slugFromPath };
+    parseScalar, parseFlowList, parsePost, buildEditedPost, slugFromPath, uploadName, uploadRefs, resolveUploads };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   const doc = root.document;
   if (!doc || !doc.getElementById("write-app")) return;
@@ -400,20 +440,132 @@
     coverNumber: $("w-cover-number"), coverText: $("w-cover-text"), coverColors: $("w-cover-colors"),
     token: $("w-token"), remember: $("w-remember"), forget: $("w-forget"), publish: $("w-publish"), download: $("w-download"), cancel: $("w-cancel"),
     load: $("w-load"), editing: $("w-editing"), fresh: $("w-new"), thumbKeep: $("w-thumb-keep"), dialogTitle: $("w-dialog-title"),
+    imageBtn: $("w-image"), imageFile: $("w-image-file"),
     loadDialog: $("w-load-dialog"), loadSearch: $("w-load-search"), loadList: $("w-load-list"), loadError: $("w-load-error"), loadClose: $("w-load-close") };
 
   const cfg = { repo: "", branch: "main", series: [], categories: [], tags: [], postUrls: [], posts: [] };
   const ui = { summaryEdited: false, slugEdited: false, coverEdited: { label: false, number: false, text: false }, newKeyEdited: false,
-    color: 0, upload: null, busy: false,
-    edit: null /* 수정 중인 글: {path, slug, sha, entries, liquid, original, image} */ };
+    color: 0, upload: null, busy: false, noticeUntil: 0 /* 안내 문구가 '임시 저장됨'에 바로 덮이지 않게 하는 시각 */,
+    edit: null /* 수정 중인 글: {path, slug, sha, entries, liquid, original, image} */,
+    uploads: new Map() /* 본문 이미지: 이름 → {name, type, blob, url} */ };
 
   store.set("write-enabled", "1"); /* 이 브라우저에서는 사이드바에 '글쓰기' 링크가 보인다 (metadata-hook.html) */
 
+  /* ── 본문 이미지 보관 (IndexedDB). 쓸 수 없는 브라우저에서는 이 탭의 메모리에만 둔다. ── */
+  const idb = {
+    open() {
+      return new Promise((resolve) => {
+        setTimeout(() => resolve(null), 3000); /* 응답이 없으면 보관 없이 진행 */
+        try {
+          const req = root.indexedDB.open("write-uploads", 1);
+          req.onupgradeneeded = () => req.result.createObjectStore("files", { keyPath: "name" });
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => resolve(null);
+        } catch { resolve(null); }
+      });
+    },
+    async run(mode, fn) {
+      const db = await this.open();
+      if (!db) return null;
+      return new Promise((resolve) => {
+        setTimeout(() => resolve(null), 3000);
+        try {
+          const tx = db.transaction("files", mode);
+          const req = fn(tx.objectStore("files"));
+          tx.oncomplete = () => { db.close(); resolve(req ? req.result : null); };
+          tx.onerror = tx.onabort = () => { db.close(); resolve(null); };
+        } catch { db.close(); resolve(null); }
+      });
+    },
+    put(rec) { return this.run("readwrite", (st) => st.put(rec)); },
+    all() { return this.run("readonly", (st) => st.getAll()); },
+    clear() { return this.run("readwrite", (st) => st.clear()); },
+  };
+
+  function rememberUpload(rec) {
+    const old = ui.uploads.get(rec.name);
+    if (old) URL.revokeObjectURL(old.url);
+    ui.uploads.set(rec.name, { ...rec, url: URL.createObjectURL(rec.blob) });
+  }
+  async function restoreUploads() {
+    const recs = await idb.all();
+    (recs || []).forEach(rememberUpload);
+    if (recs && recs.length) render();
+  }
+  function clearUploads() {
+    ui.uploads.forEach((u) => URL.revokeObjectURL(u.url));
+    ui.uploads.clear();
+    idb.clear();
+  }
+  const blobToBase64 = (blob) => new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => { const d = String(r.result); resolve(d.slice(d.indexOf(",") + 1)); };
+    r.onerror = () => reject(new Error("이미지 파일을 읽지 못했습니다."));
+    r.readAsDataURL(blob);
+  });
+  /** 본문에서 실제로 쓰는 이미지만 base64로 읽는다 */
+  async function uploadsForPublish(body) {
+    const out = [];
+    for (const name of uploadRefs(body)) {
+      const u = ui.uploads.get(name);
+      if (u) out.push({ name, base64: await blobToBase64(u.blob) });
+    }
+    return out;
+  }
+
+  /** 너무 큰 사진은 가로 1600px로 줄인다 (PNG·JPG·WebP). 줄일 수 없으면 원본 그대로. */
+  async function shrinkImage(file) {
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) return file;
+    const url = URL.createObjectURL(file);
+    try {
+      const img = await new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = reject; i.src = url; });
+      if (img.naturalWidth <= BODY_IMAGE_MAX_WIDTH && file.size <= IMAGE_MAX_BYTES) return file;
+      const scale = Math.min(1, BODY_IMAGE_MAX_WIDTH / img.naturalWidth);
+      const canvas = doc.createElement("canvas");
+      canvas.width = Math.round(img.naturalWidth * scale); canvas.height = Math.round(img.naturalHeight * scale);
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, file.type, 0.85));
+      return blob && blob.size < file.size ? new File([blob], file.name, { type: file.type }) : file;
+    } catch { return file; } finally { URL.revokeObjectURL(url); }
+  }
+
+  function insertAtCursor(text) {
+    const start = el.body.selectionStart, end = el.body.selectionEnd, v = el.body.value;
+    const before = start > 0 && v[start - 1] !== "\n" ? "\n" : "";
+    el.body.setRangeText(before + text, start, end, "end");
+    onEdit();
+  }
+
+  async function addImages(fileList) {
+    const files = Array.from(fileList || []).filter((f) => f && f.type && f.type.startsWith("image/"));
+    const problems = [];
+    for (const original of files) {
+      if (!IMAGE_TYPES[original.type]) { problems.push(`${original.name}: PNG, JPG, WebP, GIF, SVG만 넣을 수 있습니다`); continue; }
+      const file = await shrinkImage(original);
+      if (file.size > IMAGE_MAX_BYTES) { problems.push(`${original.name}: 2MB보다 큽니다`); continue; }
+      const tag = Math.random().toString(36).slice(2, 7);
+      const name = uploadName(original.name, file.type, tag);
+      const rec = { name, type: file.type, blob: file };
+      rememberUpload(rec);
+      idb.put(rec); /* 새로 고침 뒤에도 남게 보관. 실패해도 이 탭에서는 계속 쓸 수 있다 */
+      const alt = String(original.name || "").replace(/\.[^.]*$/, "").replace(/[\[\]]/g, "") || "이미지";
+      insertAtCursor(`![${alt}](upload:${name})\n`);
+    }
+    const added = files.length - problems.length;
+    const parts = [];
+    if (added > 0) parts.push(`이미지 ${added}개를 넣었습니다 (게시할 때 함께 올라갑니다)`);
+    parts.push(...problems);
+    if (parts.length) { ui.noticeUntil = Date.now() + 8000; el.status.textContent = parts.join(" · "); }
+  }
+
   /* 미리보기 */
+  const PREVIEW_URI = /^(?:(?:(?:f|ht)tps?|mailto|tel|blob):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
   function render() {
     const title = el.title.value.trim();
-    const html = root.marked.parse(el.body.value, { gfm: true, breaks: false });
-    const clean = root.DOMPurify.sanitize(html, { USE_PROFILES: { html: true }, FORBID_TAGS: ["style", "form", "input", "button", "iframe"] });
+    /* 올린 이미지는 미리보기에서만 이 브라우저의 임시 주소로 바꿔 보여 준다 */
+    const source = el.body.value.replace(UPLOAD_REF, (whole, open, name) => { const u = ui.uploads.get(name); return u ? open + u.url : whole; });
+    const html = root.marked.parse(source, { gfm: true, breaks: false });
+    const clean = root.DOMPurify.sanitize(html, { USE_PROFILES: { html: true }, FORBID_TAGS: ["style", "form", "input", "button", "iframe"], ALLOWED_URI_REGEXP: PREVIEW_URI });
     el.preview.innerHTML = "";
     if (title) { const h = doc.createElement("h1"); h.textContent = title; el.preview.append(h); }
     const body = doc.createElement("div");
@@ -427,11 +579,11 @@
   let saveTimer = 0;
   function saveDraft() {
     store.set(DRAFT_KEY, JSON.stringify({ title: el.title.value, body: el.body.value, edit: ui.edit, savedAt: Date.now() }));
-    el.status.textContent = "임시 저장됨 " + new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+    if (Date.now() >= ui.noticeUntil) el.status.textContent = "임시 저장됨 " + new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
   }
   function onEdit() {
     render();
-    el.status.textContent = "저장 중…";
+    if (Date.now() >= ui.noticeUntil) el.status.textContent = "저장 중…";
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveDraft, 600);
   }
@@ -512,7 +664,7 @@
       : { mode: mode === "upload" ? "none" : mode };
     return { title: el.title.value, body: el.body.value, slug: el.slug.value.trim(), description: el.summary.value,
       categories: [el.cat1.value.trim(), el.cat2.value.trim()].filter(Boolean), tags: splitList(el.tags.value).map((t) => t.toLowerCase()),
-      series: seriesState(), image };
+      series: seriesState(), image, missingUploads: uploadRefs(el.body.value).filter((n) => !ui.uploads.has(n)) };
   }
 
   function showErrors(list) {
@@ -553,6 +705,7 @@
         if (new RegExp(`^- key: ${s.series.key}\\s*$`, "m").test(seriesYaml)) throw new Error("같은 키의 시리즈가 이미 저장소에 있습니다.");
       }
       const editing = ui.edit;
+      s.uploads = await uploadsForPublish(s.body);
       const plan = planFiles(s, { now: new Date(), seriesList: cfg.series, seriesYaml, edit: editing });
       const current = await readRepoFileInfo({ ...base, path: plan.path });
       if (!editing && current !== null) throw new Error("같은 이름의 글 파일이 이미 저장소에 있습니다. 주소를 바꾸세요.");
@@ -560,7 +713,7 @@
       if (editing && current.sha !== editing.sha) throw new Error("불러온 뒤에 저장소의 글이 바뀌었습니다. 내용을 따로 복사해 두고 글을 다시 불러오세요.");
       const done = await commitFiles({ ...base, message: `${editing ? "글 수정" : "글 게시"}: ${s.title.trim()}`, files: plan.files });
       if (el.remember.checked) { store.set(TOKEN_KEY, token); session.del(TOKEN_KEY); } else { session.set(TOKEN_KEY, token); store.del(TOKEN_KEY); }
-      store.del(DRAFT_KEY);
+      store.del(DRAFT_KEY); clearUploads();
       const h = doc.createElement("h2"); h.textContent = editing ? "수정했습니다" : "게시했습니다";
       const again = doc.createElement("button"); again.type = "button"; again.textContent = "새 글 쓰기";
       again.addEventListener("click", () => { root.location.reload(); });
@@ -576,6 +729,7 @@
   function download() {
     const s = check();
     if (!s) return;
+    s.uploads = []; /* 내려받는 파일에는 이미지가 들어가지 않으므로 upload: 표시를 그대로 둔다 */
     const plan = planFiles(s, { now: new Date(), seriesList: cfg.series, seriesYaml: "", edit: ui.edit });
     const a = doc.createElement("a");
     a.href = URL.createObjectURL(new Blob([plan.content], { type: "text/markdown;charset=utf-8" }));
@@ -584,6 +738,7 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     const notes = [`받은 파일을 저장소의 ${plan.path} 에 넣고 커밋하면 게시됩니다.`];
     if (s.image.mode !== "none" && s.image.mode !== "keep") notes.push("썸네일 파일은 내려받기에 포함되지 않습니다. 머리말의 image 경로에 맞춰 따로 넣으세요.");
+    if (uploadRefs(s.body).length) notes.push("본문에 넣은 이미지는 내려받기에 포함되지 않습니다. 파일의 (upload:이름) 부분을 직접 올린 이미지 경로로 바꾸세요.");
     if (s.series.mode === "new") notes.push("새 시리즈는 _data/series.yml 에 직접 추가해야 시리즈 탭에 소개가 나옵니다.");
     showErrors(notes);
   }
@@ -634,7 +789,7 @@
     const none = el.form.querySelector('input[name="series"][value=""]'); if (none) none.checked = true;
     el.form.querySelector('input[name="thumb"][value="auto"]').checked = true;
     el.seriesNew.hidden = true;
-    store.del(DRAFT_KEY); render(); renderEditState();
+    store.del(DRAFT_KEY); clearUploads(); render(); renderEditState();
     el.status.textContent = "";
     if (root.history && root.location.search) root.history.replaceState(null, "", root.location.pathname);
   }
@@ -648,7 +803,7 @@
     const parsed = parsePost(info.text);
     if (!parsed) throw new Error("이 글의 머리말을 읽지 못했습니다.");
     ui.edit = { path, slug: slugFromPath(path), url: item.url, sha: info.sha, entries: parsed.entries, liquid: parsed.liquid, original: parsed.data, image: parsed.data.image };
-    ui.upload = null;
+    ui.upload = null; clearUploads();
     el.title.value = parsed.data.title; el.body.value = parsed.body;
     applyEditMeta(); render(); renderEditState(); saveDraft();
     el.status.textContent = parsed.liquid === "keep" ? "불러왔습니다 · 이 글은 Liquid 태그를 직접 씁니다" : "불러왔습니다";
@@ -721,7 +876,7 @@
   }
 
   function init() {
-    loadDraft(); render(); buildColors(); renderEditState();
+    loadDraft(); render(); buildColors(); renderEditState(); restoreUploads();
     const saved = session.get(TOKEN_KEY) || store.get(TOKEN_KEY);
     if (saved) { el.token.value = saved; el.remember.checked = !!store.get(TOKEN_KEY); }
     loadConfig();
@@ -741,6 +896,19 @@
       el.toggle.setAttribute("aria-pressed", String(on));
     });
     el.open.addEventListener("click", openDialog);
+    el.imageBtn.addEventListener("click", () => el.imageFile.click());
+    el.imageFile.addEventListener("change", async () => { await addImages(el.imageFile.files); el.imageFile.value = ""; });
+    el.body.addEventListener("paste", (e) => {
+      const files = Array.from((e.clipboardData && e.clipboardData.files) || []).filter((f) => f.type.startsWith("image/"));
+      if (files.length) { e.preventDefault(); addImages(files); }
+    });
+    el.body.addEventListener("dragover", (e) => { if (e.dataTransfer && Array.from(e.dataTransfer.types).includes("Files")) { e.preventDefault(); el.body.classList.add("w-drop"); } });
+    el.body.addEventListener("dragleave", () => el.body.classList.remove("w-drop"));
+    el.body.addEventListener("drop", (e) => {
+      el.body.classList.remove("w-drop");
+      const files = Array.from((e.dataTransfer && e.dataTransfer.files) || []).filter((f) => f.type.startsWith("image/"));
+      if (files.length) { e.preventDefault(); addImages(files); }
+    });
     el.load.addEventListener("click", () => { el.loadSearch.value = ""; el.loadError.hidden = true; renderLoadList(); el.loadDialog.showModal(); el.loadSearch.focus(); });
     el.loadSearch.addEventListener("input", renderLoadList);
     el.loadClose.addEventListener("click", () => el.loadDialog.close());
