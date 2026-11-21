@@ -36,6 +36,17 @@ a { color: var(--w-accent); }
 .w-editing { font-size: .85rem; padding: .2rem .6rem; border-radius: 999px; background: var(--w-panel); border: 1px solid var(--w-border);
   max-width: 28rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+.w-badge:not(:empty) { display: inline-block; min-width: 1.3rem; padding: 0 .35rem; margin-left: .2rem; border-radius: 999px; background: var(--w-accent); color: var(--w-accent-text); font-size: .75rem; line-height: 1.3rem; text-align: center; }
+.w-note { margin: 0 0 .75rem; font-size: .85rem; color: var(--w-muted); }
+/* 임시 글 목록: 왼쪽은 여는 버튼, 오른쪽은 삭제 */
+.w-drafts-list li { display: flex; align-items: stretch; }
+.w-load-list .w-draft-open { flex: 1; min-width: 0; flex-direction: column; align-items: flex-start; gap: .1rem; }
+.w-draft-open > span { display: flex; flex-direction: column; min-width: 0; width: 100%; }
+.w-draft-open b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.w-draft-snippet { color: var(--w-muted); font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.w-load-list .w-draft-open small { margin-left: 0; }
+.w-load-list .w-draft-del { width: auto; flex: none; align-items: center; padding: 0 .9rem; color: var(--w-danger); border-left: 1px solid var(--w-border); font-size: .85rem; }
+
 /* 글 불러오기 창 */
 .w-load { width: min(40rem, calc(100% - 2rem)); }
 .w-load-body { padding: 1.5rem; }
@@ -134,8 +145,8 @@ a { color: var(--w-accent); }
   .w-title { font-size: 1.5rem; }
   .w-grid { grid-template-columns: 1fr; }
   .w-status, .w-editing { display: none; }
-  .w-open, #w-open { margin-left: auto; }
   #w-toggle { margin-left: auto; }
-  #w-toggle + #w-open { margin-left: 0; }
+  .w-bar { flex-wrap: wrap; gap: .4rem; padding: .5rem .75rem; }
+  .w-bar .w-ghost, .w-bar .w-primary { padding: .35rem .6rem; font-size: .88rem; }
 }
 @media (prefers-contrast: more) { :root { --w-border: currentColor; } }

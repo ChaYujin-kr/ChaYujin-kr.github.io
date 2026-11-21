@@ -347,3 +347,52 @@ test("검사: 본문이 가리키는 이미지가 브라우저에 없으면 막�
   assert.match(errors[0], /gone-9\.png/);
   assert.deepEqual(W.validate({ ...s, missingUploads: [] }, { seriesKeys: [], postUrls: [] }), []);
 });
+
+/* ── 임시 저장 글 목록 ── */
+
+test("임시 글 읽기: 깨진 값은 빈 목록, 형식이 다른 항목은 버리거나 바로잡는다", () => {
+  assert.deepEqual(W.parseDrafts("{깨짐", null, "n1"), { current: "", items: {}, migrated: "" });
+  assert.deepEqual(W.parseDrafts(null, null, "n1"), { current: "", items: {}, migrated: "" });
+  const s = W.parseDrafts(JSON.stringify({ current: "a", items: { a: { title: "A", body: "본문", savedAt: 5, edit: { path: "_posts/x.md", entries: [] }, meta: { tags: "t" } },
+    b: { title: 3, edit: { path: 1 }, meta: "문자열" }, c: null } }), null, "n1");
+  assert.equal(s.current, "a");
+  assert.deepEqual(Object.keys(s.items), ["a", "b"]);
+  assert.deepEqual(s.items.a, { id: "a", title: "A", body: "본문", edit: { path: "_posts/x.md", entries: [] }, meta: { tags: "t" }, savedAt: 5 });
+  assert.deepEqual(s.items.b, { id: "b", title: "3", body: "", edit: null, meta: null, savedAt: 0 });
+});
+
+test("임시 글 읽기: 예전 방식의 한 편을 목록으로 옮긴다", () => {
+  const old = JSON.stringify({ title: "쓰던 글", body: "본문", savedAt: 9 });
+  const s = W.parseDrafts(null, old, "n1");
+  assert.equal(s.migrated, "n1");
+  assert.equal(s.current, "n1");
+  assert.equal(s.items.n1.title, "쓰던 글");
+  /* 이미 고른 글이 있으면 그 선택을 지킨다 */
+  const kept = W.parseDrafts(JSON.stringify({ current: "a", items: { a: { title: "A", body: "x", savedAt: 1 } } }), old, "n1");
+  assert.equal(kept.current, "a");
+  assert.deepEqual(Object.keys(kept.items).sort(), ["a", "n1"]);
+  /* 빈 예전 글은 옮기지 않는다 */
+  assert.equal(W.parseDrafts(null, JSON.stringify({ title: " ", body: "" }), "n1").migrated, "");
+});
+
+test("임시 글 목록: 빈 글은 빼고 최근 것부터, 제목이 없으면 '제목 없음'", () => {
+  const items = { a: { id: "a", title: "오래된 글", body: "첫 **문단**입니다", savedAt: 10, edit: null },
+    b: { id: "b", title: "  ", body: "제목 없는 글의 본문", savedAt: 30, edit: { path: "_posts/2026-11-08-x.md" } },
+    c: { id: "c", title: "", body: "  ", savedAt: 99, edit: null } };
+  assert.deepEqual(W.listDrafts(items), [
+    { id: "b", title: "제목 없음", snippet: "제목 없는 글의 본문", savedAt: 30, editing: "_posts/2026-11-08-x.md" },
+    { id: "a", title: "오래된 글", snippet: "첫 문단입니다", savedAt: 10, editing: "" }]);
+  assert.equal(W.findDraftByPath(items, "_posts/2026-11-08-x.md"), "b");
+  assert.equal(W.findDraftByPath(items, "_posts/none.md"), "");
+  assert.ok(W.draftIsEmpty({ title: " ", body: "\n" }) && W.draftIsEmpty(null) && !W.draftIsEmpty({ title: "", body: "x" }));
+});
+
+test("임시 글 저장 시각 표시", () => {
+  const now = Date.UTC(2026, 10, 22, 0, 0, 0);
+  assert.equal(W.draftTime(now - 20 * 1000, now), "방금 전");
+  assert.equal(W.draftTime(now - 5 * 60000, now), "5분 전");
+  assert.equal(W.draftTime(now - 3 * 3600000, now), "3시간 전");
+  assert.equal(W.draftTime(now - 2 * 86400000, now), "2일 전");
+  assert.equal(W.draftTime(Date.UTC(2026, 8, 1, 3, 0, 0), now), "2026-09-01");
+  assert.equal(W.draftTime(0, now), "");
+});

@@ -4,6 +4,7 @@
  * - 기존 글 수정: '글 불러오기' 또는 /write/?edit=<파일 경로>. 다루지 않는 머리말 항목과 날짜는 그대로 둔다.
  * - 본문 이미지: 버튼·붙여넣기·끌어다 놓기. 본문에는 (upload:이름)으로 적어 두고 파일은 이 브라우저(IndexedDB)에 보관했다가,
  *   게시할 때 assets/img/posts/<주소>/ 아래에 글과 같은 커밋으로 올리고 경로를 바꿔 쓴다.
+ * - 임시 저장: 쓰는 글마다 따로 보관하고 '임시 글' 목록에서 열거나 지운다 (이 브라우저의 localStorage).
  * - 게시: GitHub API로 글·썸네일·시리즈 목록을 커밋 하나에 담아 올린다. 토큰은 이 브라우저에만 저장된다.
  *         토큰 없이 파일로 내려받을 수도 있다.
  * 순수 함수는 아래 api로 내보내 _tests/write.test.mjs에서 검사한다.
@@ -266,6 +267,60 @@
     return { body: out, files, missing };
   }
 
+  /* ── 임시 저장 글 목록 ── */
+
+  const draftIsEmpty = (d) => !d || (!String(d.title || "").trim() && !String(d.body || "").trim());
+
+  /**
+   * 저장된 임시 글 묶음을 읽는다. 깨진 값은 버리고, 예전 방식(한 편만 저장)의 글이 있으면 newId로 옮겨 담는다.
+   * @returns {current, items:{id: {id, title, body, edit, meta, savedAt}}, migrated(옮겨 담은 글의 id 또는 "")}
+   */
+  function parseDrafts(raw, legacyRaw, newId) {
+    const state = { current: "", items: {}, migrated: "" };
+    const clean = (id, v) => ({ id, title: String(v.title || ""), body: String(v.body || ""),
+      edit: v.edit && typeof v.edit.path === "string" && Array.isArray(v.edit.entries) ? v.edit : null,
+      meta: v.meta && typeof v.meta === "object" ? v.meta : null, savedAt: Number(v.savedAt) || 0 });
+    try {
+      const d = JSON.parse(raw || "null");
+      if (d && d.items && typeof d.items === "object") {
+        for (const [id, v] of Object.entries(d.items)) if (v && typeof v === "object") state.items[id] = clean(id, v);
+        if (typeof d.current === "string") state.current = d.current;
+      }
+    } catch { /* 깨진 값은 빈 목록으로 */ }
+    try {
+      const old = JSON.parse(legacyRaw || "null");
+      if (old && typeof old === "object" && !draftIsEmpty(old) && newId) {
+        state.items[newId] = clean(newId, old);
+        state.migrated = newId;
+        if (!state.items[state.current]) state.current = newId;
+      }
+    } catch { /* 무시 */ }
+    return state;
+  }
+
+  /** 목록에 보일 임시 글: 빈 글은 빼고, 최근에 저장한 것부터 */
+  function listDrafts(items) {
+    return Object.values(items || {}).filter((d) => !draftIsEmpty(d)).sort((a, b) => b.savedAt - a.savedAt)
+      .map((d) => ({ id: d.id, title: d.title.trim() || "제목 없음", snippet: summarize(d.body, 60), savedAt: d.savedAt, editing: d.edit ? d.edit.path : "" }));
+  }
+
+  /** 같은 글(파일 경로)을 고치던 임시 글의 id. 없으면 "" */
+  function findDraftByPath(items, path) {
+    const hit = Object.values(items || {}).find((d) => d.edit && d.edit.path === path);
+    return hit ? hit.id : "";
+  }
+
+  /** 저장 시각을 '방금 전', '5분 전'처럼 */
+  function draftTime(savedAt, now = Date.now()) {
+    const min = Math.floor((now - savedAt) / 60000);
+    if (!savedAt) return "";
+    if (min < 1) return "방금 전";
+    if (min < 60) return `${min}분 전`;
+    if (min < 60 * 24) return `${Math.floor(min / 60)}시간 전`;
+    if (min < 60 * 24 * 30) return `${Math.floor(min / 1440)}일 전`;
+    return kstStamp(new Date(savedAt)).day;
+  }
+
   /* ── 검사 ── */
 
   /**
@@ -411,7 +466,8 @@
 
   const api = { SUMMARY_CHARS, SUMMARY_MAX, COVER_COLORS, plainText, summarize, slugify, kstStamp, yamlStr, splitList, protectLiquid,
     buildPost, postPath, postUrl, appendSeries, coverSvg, validate, b64utf8, b64decodeUtf8, commitFiles, readRepoFile, readRepoFileInfo, planFiles, explainStatus,
-    parseScalar, parseFlowList, parsePost, buildEditedPost, slugFromPath, uploadName, uploadRefs, resolveUploads };
+    parseScalar, parseFlowList, parsePost, buildEditedPost, slugFromPath, uploadName, uploadRefs, resolveUploads,
+    draftIsEmpty, parseDrafts, listDrafts, findDraftByPath, draftTime };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   const doc = root.document;
   if (!doc || !doc.getElementById("write-app")) return;
@@ -429,7 +485,9 @@
     set: (k, v) => { try { root.sessionStorage.setItem(k, v); } catch { /* 무시 */ } },
     del: (k) => { try { root.sessionStorage.removeItem(k); } catch { /* 무시 */ } },
   };
-  const DRAFT_KEY = "write-draft-v1", TOKEN_KEY = "write-token";
+  const DRAFT_KEY = "write-draft-v1" /* 예전 방식: 한 편만 */, DRAFTS_KEY = "write-drafts-v1", LEGACY_UPLOADS_KEY = "write-legacy-uploads", TOKEN_KEY = "write-token";
+  const newDraftId = () => "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const drafts = { items: {} };
 
   const el = { title: $("w-title"), body: $("w-body"), preview: $("w-preview"), status: $("w-status"), open: $("w-open"),
     toggle: $("w-toggle"), dialog: $("w-dialog"), form: $("w-form"), errors: $("w-errors"), result: $("w-result"),
@@ -441,13 +499,15 @@
     token: $("w-token"), remember: $("w-remember"), forget: $("w-forget"), publish: $("w-publish"), download: $("w-download"), cancel: $("w-cancel"),
     load: $("w-load"), editing: $("w-editing"), fresh: $("w-new"), thumbKeep: $("w-thumb-keep"), dialogTitle: $("w-dialog-title"),
     imageBtn: $("w-image"), imageFile: $("w-image-file"),
+    draftsBtn: $("w-drafts"), draftsCount: $("w-drafts-count"), draftsDialog: $("w-drafts-dialog"), draftsList: $("w-drafts-list"), draftsClose: $("w-drafts-close"),
     loadDialog: $("w-load-dialog"), loadSearch: $("w-load-search"), loadList: $("w-load-list"), loadError: $("w-load-error"), loadClose: $("w-load-close") };
 
   const cfg = { repo: "", branch: "main", series: [], categories: [], tags: [], postUrls: [], posts: [] };
   const ui = { summaryEdited: false, slugEdited: false, coverEdited: { label: false, number: false, text: false }, newKeyEdited: false,
     color: 0, upload: null, busy: false, noticeUntil: 0 /* 안내 문구가 '임시 저장됨'에 바로 덮이지 않게 하는 시각 */,
     edit: null /* 수정 중인 글: {path, slug, sha, entries, liquid, original, image} */,
-    uploads: new Map() /* 본문 이미지: 이름 → {name, type, blob, url} */ };
+    uploads: new Map() /* 본문 이미지: 이름 → {name, type, blob, url} */,
+    draftId: "" /* 지금 쓰는 임시 글 */, metaReady: false /* 시리즈 목록까지 불러와 게시 창 값을 믿을 수 있는지 */ };
 
   store.set("write-enabled", "1"); /* 이 브라우저에서는 사이드바에 '글쓰기' 링크가 보인다 (metadata-hook.html) */
 
@@ -479,7 +539,7 @@
     },
     put(rec) { return this.run("readwrite", (st) => st.put(rec)); },
     all() { return this.run("readonly", (st) => st.getAll()); },
-    clear() { return this.run("readwrite", (st) => st.clear()); },
+    del(name) { return this.run("readwrite", (st) => st.delete(name)); },
   };
 
   function rememberUpload(rec) {
@@ -487,15 +547,30 @@
     if (old) URL.revokeObjectURL(old.url);
     ui.uploads.set(rec.name, { ...rec, url: URL.createObjectURL(rec.blob) });
   }
-  async function restoreUploads() {
-    const recs = await idb.all();
-    (recs || []).forEach(rememberUpload);
-    if (recs && recs.length) render();
-  }
-  function clearUploads() {
+  /** 화면에 올려 둔 이미지를 비운다 (보관된 파일은 그대로) */
+  function forgetUploads() {
     ui.uploads.forEach((u) => URL.revokeObjectURL(u.url));
     ui.uploads.clear();
-    idb.clear();
+  }
+  /** 지금 쓰는 임시 글의 이미지만 보관함에서 꺼낸다 */
+  async function restoreUploads() {
+    const id = ui.draftId;
+    const legacy = store.get(LEGACY_UPLOADS_KEY); /* 예전 방식으로 보관된 이미지가 속한 글 */
+    const recs = (await idb.all()) || [];
+    if (id !== ui.draftId) return; /* 기다리는 사이 다른 글로 바뀌었으면 그쪽 호출에 맡긴다 */
+    forgetUploads();
+    for (const r of recs) {
+      if (!r.draft && legacy) { r.draft = legacy; idb.put(r); }
+      else if (!r.draft || !drafts.items[r.draft] && r.draft !== id) { idb.del(r.name); continue; } /* 주인 없는 파일은 치운다 */
+      if (r.draft === id) rememberUpload(r);
+    }
+    if (legacy) store.del(LEGACY_UPLOADS_KEY);
+    render();
+  }
+  /** 임시 글 하나에 딸린 이미지를 보관함에서 지운다 */
+  async function dropUploads(draftId) {
+    const recs = (await idb.all()) || [];
+    recs.filter((r) => r.draft === draftId).forEach((r) => idb.del(r.name));
   }
   const blobToBase64 = (blob) => new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -545,7 +620,7 @@
       if (file.size > IMAGE_MAX_BYTES) { problems.push(`${original.name}: 2MB보다 큽니다`); continue; }
       const tag = Math.random().toString(36).slice(2, 7);
       const name = uploadName(original.name, file.type, tag);
-      const rec = { name, type: file.type, blob: file };
+      const rec = { name, type: file.type, blob: file, draft: ui.draftId };
       rememberUpload(rec);
       idb.put(rec); /* 새로 고침 뒤에도 남게 보관. 실패해도 이 탭에서는 계속 쓸 수 있다 */
       const alt = String(original.name || "").replace(/\.[^.]*$/, "").replace(/[\[\]]/g, "") || "이미지";
@@ -577,8 +652,25 @@
 
   /* 임시 저장 */
   let saveTimer = 0;
+  function persistDrafts() {
+    store.set(DRAFTS_KEY, JSON.stringify({ current: ui.draftId, items: drafts.items }));
+    const n = listDrafts(drafts.items).length;
+    el.draftsCount.textContent = n ? String(n) : "";
+  }
+  /** 게시 창에서 직접 고친 값. 시리즈 목록을 불러오기 전에는 이전에 저장한 값을 그대로 둔다. */
+  function collectMeta() {
+    const prev = drafts.items[ui.draftId];
+    if (!ui.metaReady) return prev ? prev.meta : null;
+    const series = selectedSeries();
+    return { summary: ui.summaryEdited ? el.summary.value : null, slug: ui.slugEdited && !ui.edit ? el.slug.value : null,
+      cat1: el.cat1.value, cat2: el.cat2.value, tags: el.tags.value, series: series === "__new__" ? "" : series };
+  }
   function saveDraft() {
-    store.set(DRAFT_KEY, JSON.stringify({ title: el.title.value, body: el.body.value, edit: ui.edit, savedAt: Date.now() }));
+    const d = { id: ui.draftId, title: el.title.value, body: el.body.value, edit: ui.edit, meta: collectMeta(), savedAt: Date.now() };
+    if (draftIsEmpty(d)) delete drafts.items[ui.draftId]; /* 빈 글은 목록에 남기지 않는다 */
+    else drafts.items[ui.draftId] = d;
+    persistDrafts();
+    if (draftIsEmpty(d)) return;
     if (Date.now() >= ui.noticeUntil) el.status.textContent = "임시 저장됨 " + new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
   }
   function onEdit() {
@@ -587,14 +679,81 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveDraft, 600);
   }
+  function fillFromDraft(d) {
+    el.title.value = d ? d.title : ""; el.body.value = d ? d.body : "";
+    ui.edit = d ? d.edit : null; ui.upload = null;
+  }
   function loadDraft() {
-    try {
-      const d = JSON.parse(store.get(DRAFT_KEY) || "null");
-      if (d && (d.title || d.body)) {
-        el.title.value = d.title || ""; el.body.value = d.body || ""; el.status.textContent = "임시 저장된 글을 불러왔습니다";
-        if (d.edit && d.edit.path && Array.isArray(d.edit.entries)) ui.edit = d.edit;
-      }
-    } catch { /* 깨진 임시 저장은 무시 */ }
+    const state = parseDrafts(store.get(DRAFTS_KEY), store.get(DRAFT_KEY), newDraftId());
+    drafts.items = state.items;
+    if (state.migrated) { store.del(DRAFT_KEY); store.set(LEGACY_UPLOADS_KEY, state.migrated); }
+    const d = drafts.items[state.current];
+    ui.draftId = d ? d.id : newDraftId();
+    fillFromDraft(d);
+    if (d) el.status.textContent = "임시 저장된 글을 불러왔습니다";
+    persistDrafts();
+  }
+
+  /** 게시 창의 값을 지금 글에 맞춘다: 비우고 → 수정 중이면 원래 글의 값 → 임시 저장된 값 */
+  function applyDraftMeta() {
+    ui.summaryEdited = false; ui.slugEdited = false; ui.newKeyEdited = false; ui.coverEdited = { label: false, number: false, text: false };
+    el.summary.value = ""; el.slug.value = ""; el.cat1.value = ""; el.cat2.value = ""; el.tags.value = "";
+    el.newTitle.value = ""; el.newKey.value = ""; el.newDesc.value = "";
+    const pick = (name, value) => { const r = Array.from(el.form.querySelectorAll(`input[name="${name}"]`)).find((x) => x.value === value); if (r) r.checked = true; return !!r; };
+    pick("series", ""); pick("thumb", "auto"); el.seriesNew.hidden = true;
+    if (ui.edit) applyEditMeta();
+    const m = (drafts.items[ui.draftId] || {}).meta;
+    if (!m) return;
+    if (typeof m.summary === "string") { el.summary.value = m.summary; ui.summaryEdited = true; }
+    if (typeof m.slug === "string" && !ui.edit) { el.slug.value = m.slug; ui.slugEdited = true; }
+    el.cat1.value = m.cat1 || ""; el.cat2.value = m.cat2 || ""; el.tags.value = m.tags || "";
+    if (typeof m.series === "string") pick("series", m.series);
+  }
+
+  /** 다른 임시 글로 바꾼다. 지금 쓰던 글은 먼저 저장한다. */
+  function switchDraft(id) {
+    clearTimeout(saveTimer); saveDraft();
+    const d = drafts.items[id];
+    ui.draftId = d ? id : newDraftId();
+    fillFromDraft(d);
+    forgetUploads(); restoreUploads();
+    applyDraftMeta(); render(); renderEditState(); persistDrafts();
+    if (root.history && root.location.search) root.history.replaceState(null, "", root.location.pathname);
+  }
+  /** 빈 새 글을 시작한다. 쓰던 글은 임시 글 목록에 남는다. */
+  function startNew() {
+    switchDraft("");
+    el.status.textContent = "";
+  }
+  /** 임시 글을 지운다. 지금 쓰던 글이면 빈 화면으로 돌아간다. */
+  function deleteDraft(id) {
+    delete drafts.items[id];
+    dropUploads(id);
+    if (id === ui.draftId) {
+      clearTimeout(saveTimer);
+      ui.draftId = newDraftId(); fillFromDraft(null); forgetUploads();
+      applyDraftMeta(); render(); renderEditState(); el.status.textContent = "";
+    }
+    persistDrafts();
+  }
+
+  function renderDraftList() {
+    clearTimeout(saveTimer); saveDraft();
+    el.draftsList.innerHTML = "";
+    const items = listDrafts(drafts.items);
+    items.forEach((x) => {
+      const li = doc.createElement("li"), open = doc.createElement("button"), text = doc.createElement("span"), title = doc.createElement("b"),
+        snippet = doc.createElement("span"), meta = doc.createElement("small"), del = doc.createElement("button");
+      open.type = "button"; open.className = "w-draft-open"; del.type = "button"; del.className = "w-draft-del";
+      title.textContent = x.title; snippet.textContent = x.snippet; snippet.className = "w-draft-snippet";
+      meta.textContent = [x.id === ui.draftId ? "지금 쓰는 글" : "", x.editing ? "기존 글 수정" : "", draftTime(x.savedAt)].filter(Boolean).join(" · ");
+      text.append(title, snippet); open.append(text, meta);
+      del.textContent = "삭제"; del.setAttribute("aria-label", `${x.title} 삭제`);
+      open.addEventListener("click", () => { if (x.id !== ui.draftId) { switchDraft(x.id); el.status.textContent = "임시 글을 열었습니다"; } el.draftsDialog.close(); });
+      del.addEventListener("click", () => { if (root.confirm(`'${x.title}' 임시 글을 지울까요? 되돌릴 수 없습니다.`)) { deleteDraft(x.id); renderDraftList(); } });
+      li.append(open, del); el.draftsList.append(li);
+    });
+    if (!items.length) { const li = doc.createElement("li"); li.className = "w-load-empty"; li.textContent = "임시 저장된 글이 없습니다."; el.draftsList.append(li); }
   }
 
   /* 두 칸의 스크롤 위치를 비율로 맞춘다 */
@@ -713,14 +872,16 @@
       if (editing && current.sha !== editing.sha) throw new Error("불러온 뒤에 저장소의 글이 바뀌었습니다. 내용을 따로 복사해 두고 글을 다시 불러오세요.");
       const done = await commitFiles({ ...base, message: `${editing ? "글 수정" : "글 게시"}: ${s.title.trim()}`, files: plan.files });
       if (el.remember.checked) { store.set(TOKEN_KEY, token); session.del(TOKEN_KEY); } else { session.set(TOKEN_KEY, token); store.del(TOKEN_KEY); }
-      store.del(DRAFT_KEY); clearUploads();
+      clearTimeout(saveTimer);
+      delete drafts.items[ui.draftId]; dropUploads(ui.draftId); forgetUploads();
+      ui.draftId = newDraftId(); persistDrafts();
       const h = doc.createElement("h2"); h.textContent = editing ? "수정했습니다" : "게시했습니다";
       const again = doc.createElement("button"); again.type = "button"; again.textContent = "새 글 쓰기";
       again.addEventListener("click", () => { root.location.reload(); });
       showResult([h, para("사이트에 반영되기까지 1~2분 걸립니다. 글 안의 링크나 이미지 주소가 깨져 있으면 배포 검사에서 멈추니, 글이 보이지 않으면 배포 진행 상황을 확인하세요."),
         para("글 주소: ", link(editing ? editing.url || plan.url : plan.url, root.location.origin + (editing ? editing.url || plan.url : plan.url))),
         para("커밋: ", link(done.url, done.sha.slice(0, 7)), " · ", link(`https://github.com/${cfg.repo}/actions`, "배포 진행 상황")), again]);
-      el.title.value = ""; el.body.value = ""; ui.edit = null; render(); renderEditState();
+      fillFromDraft(null); applyDraftMeta(); render(); renderEditState();
     } catch (e) {
       showErrors([e && e.message ? e.message : "게시하지 못했습니다."]);
     } finally { setBusy(false); }
@@ -758,7 +919,7 @@
 
   function renderEditState() {
     const on = !!ui.edit;
-    el.editing.hidden = !on; el.fresh.hidden = !on; el.thumbKeep.hidden = !(on && ui.edit.image);
+    el.editing.hidden = !on; el.thumbKeep.hidden = !(on && ui.edit.image);
     el.editing.textContent = on ? `수정 중: ${ui.edit.path.replace(/^_posts\//, "")}` : "";
     el.editing.title = on ? ui.edit.path : "";
     el.open.textContent = on ? "수정 게시" : "게시하기";
@@ -783,29 +944,24 @@
     ui.coverEdited = { label: false, number: false, text: false };
   }
 
-  function resetToNew() {
-    ui.edit = null; ui.summaryEdited = false; ui.slugEdited = false; ui.upload = null;
-    el.title.value = ""; el.body.value = ""; el.summary.value = ""; el.slug.value = ""; el.cat1.value = ""; el.cat2.value = ""; el.tags.value = "";
-    const none = el.form.querySelector('input[name="series"][value=""]'); if (none) none.checked = true;
-    el.form.querySelector('input[name="thumb"][value="auto"]').checked = true;
-    el.seriesNew.hidden = true;
-    store.del(DRAFT_KEY); clearUploads(); render(); renderEditState();
-    el.status.textContent = "";
-    if (root.history && root.location.search) root.history.replaceState(null, "", root.location.pathname);
-  }
-
   async function loadPost(path) {
     const item = cfg.posts.find((x) => x.path === path);
     if (!item) throw new Error("목록에 없는 글입니다.");
-    if ((el.title.value.trim() || el.body.value.trim()) && !root.confirm("쓰던 내용이 사라집니다. 이 글을 불러올까요?")) return false;
+    /* 이 글을 고치던 임시 글이 있으면 그것을 연다. 지금 그 글을 보고 있으면 저장소에서 새로 받아 덮어쓴다(확인 뒤). */
+    const existing = findDraftByPath(drafts.items, path);
+    if (existing && existing !== ui.draftId) { switchDraft(existing); el.status.textContent = "이 글을 고치던 임시 글을 열었습니다"; ui.noticeUntil = Date.now() + 8000; return true; }
+    if (existing && !root.confirm("고치던 내용을 버리고 저장소의 글을 다시 불러올까요?")) return false;
     const info = await readRepoFileInfo({ repo: cfg.repo, branch: cfg.branch, path, token: el.token.value.trim() });
     if (!info) throw new Error("저장소에서 이 글 파일을 찾지 못했습니다.");
     const parsed = parsePost(info.text);
     if (!parsed) throw new Error("이 글의 머리말을 읽지 못했습니다.");
+    /* 쓰던 글은 임시 글 목록에 남기고, 불러온 글은 새 임시 글로 연다 */
+    clearTimeout(saveTimer);
+    if (existing) { dropUploads(existing); delete drafts.items[existing]; } else { saveDraft(); ui.draftId = newDraftId(); }
     ui.edit = { path, slug: slugFromPath(path), url: item.url, sha: info.sha, entries: parsed.entries, liquid: parsed.liquid, original: parsed.data, image: parsed.data.image };
-    ui.upload = null; clearUploads();
+    ui.upload = null; forgetUploads();
     el.title.value = parsed.data.title; el.body.value = parsed.body;
-    applyEditMeta(); render(); renderEditState(); saveDraft();
+    applyDraftMeta(); render(); renderEditState(); saveDraft();
     el.status.textContent = parsed.liquid === "keep" ? "불러왔습니다 · 이 글은 Liquid 태그를 직접 씁니다" : "불러왔습니다";
     return true;
   }
@@ -868,7 +1024,7 @@
     fillDatalist("w-cat1-list", cfg.categories.map((c) => c[0]).filter((v, i, a) => v && a.indexOf(v) === i));
     fillDatalist("w-cat2-list", cfg.categories.map((c) => c[1]).filter((v, i, a) => v && a.indexOf(v) === i));
     fillDatalist("w-tags-list", cfg.tags);
-    if (ui.edit) applyEditMeta();
+    applyDraftMeta(); ui.metaReady = true;
     const want = new URLSearchParams(root.location.search).get("edit");
     if (want && !(ui.edit && ui.edit.path === want)) {
       try { await loadPost(want); } catch (e) { el.status.textContent = e && e.message ? e.message : "글을 불러오지 못했습니다"; }
@@ -912,7 +1068,13 @@
     el.load.addEventListener("click", () => { el.loadSearch.value = ""; el.loadError.hidden = true; renderLoadList(); el.loadDialog.showModal(); el.loadSearch.focus(); });
     el.loadSearch.addEventListener("input", renderLoadList);
     el.loadClose.addEventListener("click", () => el.loadDialog.close());
-    el.fresh.addEventListener("click", () => { if (root.confirm("수정을 그만두고 새 글을 시작할까요? 쓰던 내용은 사라집니다.")) resetToNew(); });
+    el.fresh.addEventListener("click", startNew);
+    el.draftsBtn.addEventListener("click", () => { renderDraftList(); el.draftsDialog.showModal(); });
+    el.draftsClose.addEventListener("click", () => el.draftsDialog.close());
+    /* 게시 창에서 고친 요약·분류·시리즈도 임시 글에 함께 저장한다 */
+    const saveSoon = () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveDraft, 600); };
+    el.form.addEventListener("input", (e) => { if (e.target !== el.token) saveSoon(); });
+    el.form.addEventListener("change", (e) => { if (e.target !== el.token && e.target !== el.remember) saveSoon(); });
     el.cancel.addEventListener("click", () => el.dialog.close());
     el.dialog.addEventListener("cancel", (e) => { if (ui.busy) e.preventDefault(); });
 
@@ -931,7 +1093,7 @@
     el.forget.addEventListener("click", () => { store.del(TOKEN_KEY); session.del(TOKEN_KEY); el.token.value = ""; el.remember.checked = false; });
     el.form.addEventListener("submit", (e) => { e.preventDefault(); publish(); });
     el.download.addEventListener("click", download);
-    root.addEventListener("beforeunload", () => { if (el.title.value || el.body.value) saveDraft(); });
+    root.addEventListener("beforeunload", () => { clearTimeout(saveTimer); saveDraft(); });
   }
 
   if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", init, { once: true });

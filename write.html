@@ -19,9 +19,10 @@ sitemap: false
 <div id="write-app">
   <header class="w-bar">
     <a class="w-back" href="{{ '/' | relative_url }}">← 블로그</a>
+    <button type="button" id="w-new" class="w-ghost">새 글</button>
+    <button type="button" id="w-drafts" class="w-ghost">임시 글 <span id="w-drafts-count" class="w-badge"></span></button>
     <button type="button" id="w-load" class="w-ghost">글 불러오기</button>
     <span id="w-editing" class="w-editing" hidden></span>
-    <button type="button" id="w-new" class="w-ghost" hidden>새 글</button>
     <span id="w-status" class="w-status" role="status" aria-live="polite"></span>
     <button type="button" id="w-toggle" class="w-ghost w-only-narrow" aria-pressed="false">미리보기</button>
     <button type="button" id="w-open" class="w-primary">게시하기</button>
@@ -132,6 +133,15 @@ sitemap: false
     </div>
   </form>
   <div id="w-result" class="w-result" hidden></div>
+</dialog>
+
+<dialog id="w-drafts-dialog" class="w-dialog w-load" aria-labelledby="w-drafts-title">
+  <div class="w-load-body">
+    <h2 id="w-drafts-title">임시 글</h2>
+    <p class="w-note">쓰던 글은 자동으로 이 브라우저에 저장됩니다. 다른 기기나 브라우저에서는 보이지 않습니다.</p>
+    <ul id="w-drafts-list" class="w-load-list w-drafts-list"></ul>
+    <div class="w-actions"><button type="button" id="w-drafts-close" class="w-ghost">닫기</button></div>
+  </div>
 </dialog>
 
 <dialog id="w-load-dialog" class="w-dialog w-load" aria-labelledby="w-load-title">
