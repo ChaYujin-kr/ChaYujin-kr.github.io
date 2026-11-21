@@ -96,7 +96,7 @@
     session = s;
     if (s) tab.set("cm-session", JSON.stringify(s)); else tab.del("cm-session");
     /* 블로그 주인으로 로그인하면 이 브라우저에 '새 글'·'글쓰기'·'수정' 링크를 보인다(화면 표시용. 권한은 서버가 따로 확인) */
-    if (s && s.admin) store.set("blog-admin", "1");
+    if (s && s.admin) { local.set("blog-admin", "1"); if (typeof root.blogAdminLinks === "function") root.blogAdminLinks(); }
   };
 
   /** 서버 호출. 401이면 로그인 상태를 지운다. 돌려주는 값: { ok, status, data } */

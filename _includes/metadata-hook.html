@@ -236,14 +236,15 @@ document.addEventListener("DOMContentLoaded", () => {
 <script>
   /* 관리자용 링크(사이드바 '글쓰기', 글 목록의 '새 글', 글의 '수정'): 블로그 주인으로 로그인한 적이 있는 브라우저에만 보인다.
      화면 표시일 뿐이고, 글을 올릴 권한은 서버(또는 GitHub 토큰)가 따로 확인한다. */
-  document.addEventListener("DOMContentLoaded", () => {
+  /* 한 번만 그린다. 댓글 칸에서 주인으로 로그인하면 community.js가 바로 다시 부른다(새로 고침 없이 보이게). */
+  window.blogAdminLinks = () => {
     try { if (localStorage.getItem("blog-admin") !== "1") return; } catch { return; }
     const nav = document.querySelector("#sidebar ul.nav");
-    if (!nav) return;
+    if (!nav || document.querySelector(".nav-write-link")) return;
     const li = document.createElement("li");
     li.className = "nav-item";
     const a = document.createElement("a");
-    a.className = "nav-link";
+    a.className = "nav-link nav-write-link";
     a.href = {{ '/write/' | relative_url | jsonify }};
     const i = document.createElement("i");
     i.className = "fa-fw fas fa-pen";
@@ -280,5 +281,7 @@ document.addEventListener("DOMContentLoaded", () => {
       meta.append(edit);
     }
     {%- endif %}
-  }, { once: true });
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", window.blogAdminLinks, { once: true });
+  else window.blogAdminLinks();
 </script>
