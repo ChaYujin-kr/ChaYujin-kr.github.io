@@ -1,14 +1,14 @@
 ---
 title: "7장. 컴포넌트와 아티팩트부터 다시"
 date: 2026-11-22 01:10:00 +0900
-categories: [MLOps, 파이프라인 실습]
+categories: [MLOps, 실습 시리즈]
 tags: [kubeflow, kfp, minio]
 description: "KFP에서 단계 사이에 값을 넘기는 두 가지 방법, 그리고 책 코드에 숨어 있던 이미지·라벨 어긋남"
 image:
   path: /assets/img/posts/mlops-lab-01.svg
   alt: "7장. 컴포넌트와 아티팩트부터 다시"
-series: mlops-lab
-series_title: "ML 파이프라인 실습 (7~11장)"
+series: mlops-drift
+series_title: "MLOps 실습 시리즈"
 ---
 
 {% include series-nav.html %}
@@ -159,3 +159,7 @@ assert [stem(p) for p in images] == [stem(p) for p in labels]
 - 주소 확인은 HEAD가 아니라 GET으로. 크기도 같이 본다.
 - 따로 읽은 두 목록을 순서로 짝짓지 않는다. 정렬하고 검사한다.
 - 파이프라인이 성공으로 끝났다고 데이터가 맞는 것은 아니다.
+
+---
+
+실습 코드: [mlops-pipeline-lab](https://github.com/ChaYujin-kr/mlops-pipeline-lab)

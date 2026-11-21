@@ -1,14 +1,14 @@
 ---
 title: "8장. 학습 파이프라인이 네 번 죽었다"
 date: 2026-11-22 01:20:00 +0900
-categories: [MLOps, 파이프라인 실습]
+categories: [MLOps, 실습 시리즈]
 tags: [kubeflow, kfp, yolo, oom]
 description: "없어진 패키지, 이름이 겹친 폴더, 메모리 부족. 그리고 라벨 어긋남은 학습이 아니라 평가를 망가뜨렸다"
 image:
   path: /assets/img/posts/mlops-lab-02.svg
   alt: "8장. 학습 파이프라인이 네 번 죽었다"
-series: mlops-lab
-series_title: "ML 파이프라인 실습 (7~11장)"
+series: mlops-drift
+series_title: "MLOps 실습 시리즈"
 ---
 
 {% include series-nav.html %}
@@ -165,3 +165,7 @@ yolo-object-detection-pipeline-...-impl-2893688001   OOMKilled
 - 로컬 클러스터의 무거운 단계에는 메모리 상한을 건다. `OOMKilled`는 원인을 알려 주지만, 멈춘 노트북은 아무것도 알려 주지 않는다.
 - 필요한 메모리는 추측하지 말고 `/usr/bin/time`으로 잰다.
 - 점수가 이상하면 모델보다 평가 데이터를 먼저 의심한다.
+
+---
+
+실습 코드: [mlops-pipeline-lab](https://github.com/ChaYujin-kr/mlops-pipeline-lab)

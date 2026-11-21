@@ -1,14 +1,14 @@
 ---
 title: "10장. 추천 파이프라인, 두 번째 실행에서 깨지는 코드"
 date: 2026-11-22 01:40:00 +0900
-categories: [MLOps, 파이프라인 실습]
+categories: [MLOps, 실습 시리즈]
 tags: [kubeflow, kfp, mlflow, recommender]
 description: "여섯 번 돌려 두 번 성공. 처음에만 되는 코드와, 기본값에 기대는 코드"
 image:
   path: /assets/img/posts/mlops-lab-04.svg
   alt: "10장. 추천 파이프라인, 두 번째 실행에서 깨지는 코드"
-series: mlops-lab
-series_title: "ML 파이프라인 실습 (7~11장)"
+series: mlops-drift
+series_title: "MLOps 실습 시리즈"
 ---
 
 {% include series-nav.html %}
@@ -184,3 +184,7 @@ rms = root_mean_squared_error(y_true, y_pred)
 - `base_image`를 생략하지 않는다. 기본값은 SDK 버전마다 다르다.
 - 클라이언트 라이브러리 버전은 서버에 맞춘다.
 - 로그에 찍힌 경로(`python3.8`)가 가장 빠른 단서였다.
+
+---
+
+실습 코드: [mlops-pipeline-lab](https://github.com/ChaYujin-kr/mlops-pipeline-lab)

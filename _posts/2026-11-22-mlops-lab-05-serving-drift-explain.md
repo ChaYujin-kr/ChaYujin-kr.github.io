@@ -1,14 +1,14 @@
 ---
 title: "11장. 추천 서빙, 드리프트, 설명 가능성"
 date: 2026-11-22 01:50:00 +0900
-categories: [MLOps, 파이프라인 실습]
+categories: [MLOps, 실습 시리즈]
 tags: [bentoml, mlflow, drift, deepchecks, explainability]
 description: "추천 500개 중 실제 영화는 29개. 드리프트 점수는 데이터가 아니라 난수 시드를 재고 있었다"
 image:
   path: /assets/img/posts/mlops-lab-05.svg
   alt: "11장. 추천 서빙, 드리프트, 설명 가능성"
-series: mlops-lab
-series_title: "ML 파이프라인 실습 (7~11장)"
+series: mlops-drift
+series_title: "MLOps 실습 시리즈"
 ---
 
 {% include series-nav.html %}
@@ -194,3 +194,7 @@ userId  itemId  rank        explanations
 - 제자리에서 고치는 함수는 원본도 바꾼다. 비교 실험에서는 `.copy()`.
 - 검사를 믿기 전에 대조군을 돌린다. 변화가 없을 때의 점수를 먼저 안다.
 - "설명 가능한 모델"이라도 설정에 따라 설명은 사후에 붙인 장식일 수 있다.
+
+---
+
+실습 코드: [mlops-pipeline-lab](https://github.com/ChaYujin-kr/mlops-pipeline-lab)

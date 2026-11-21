@@ -1,14 +1,14 @@
 ---
 title: "9장. 탐지 모델을 BentoML로 서빙"
 date: 2026-11-22 01:30:00 +0900
-categories: [MLOps, 파이프라인 실습]
+categories: [MLOps, 실습 시리즈]
 tags: [bentoml, yolo, serving]
 description: "메서드 이름 하나로 500, 첫 요청 34초. 서빙 코드도 라이브러리 버전에 묶여 있다"
 image:
   path: /assets/img/posts/mlops-lab-03.svg
   alt: "9장. 탐지 모델을 BentoML로 서빙"
-series: mlops-lab
-series_title: "ML 파이프라인 실습 (7~11장)"
+series: mlops-drift
+series_title: "MLOps 실습 시리즈"
 ---
 
 {% include series-nav.html %}
@@ -119,3 +119,7 @@ bentoml build
 - 응답이 500이고 본문이 비어 있으면 서버 로그를 본다.
 - 첫 요청은 느리다. 미리 한 번 호출해 둔다.
 - 서빙 코드도 학습에 쓴 라이브러리 버전에 묶인다. `requirements.txt`의 고정 버전을 무시하지 않는다.
+
+---
+
+실습 코드: [mlops-pipeline-lab](https://github.com/ChaYujin-kr/mlops-pipeline-lab)

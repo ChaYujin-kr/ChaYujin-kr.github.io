@@ -2,7 +2,7 @@
   <rect width="1200" height="630" fill="#1e1b3a"/>
   <circle cx="1040" cy="120" r="260" fill="#a5b4fc" opacity=".10"/>
   <circle cx="1120" cy="560" r="180" fill="#a5b4fc" opacity=".08"/>
-  <text x="80" y="140" font-family="'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif" font-size="34" fill="#a5b4fc" letter-spacing="2">ML 파이프라인 실습 7~11장</text>
-  <text x="72" y="380" font-family="'Fira Code',Consolas,monospace" font-weight="700" font-size="220" fill="#a5b4fc">03</text>
+  <text x="80" y="140" font-family="'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif" font-size="34" fill="#a5b4fc" letter-spacing="2">MLOps 실습 시리즈</text>
+  <text x="72" y="380" font-family="'Fira Code',Consolas,monospace" font-weight="700" font-size="220" fill="#a5b4fc">14</text>
   <text x="80" y="520" font-family="'Noto Sans KR','Apple SD Gothic Neo','Malgun Gothic',sans-serif" font-weight="700" font-size="64" fill="#f8fafc">탐지 모델 서빙</text>
 </svg>
