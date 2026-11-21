@@ -1,0 +1,59 @@
+---
+# 시리즈 라이브러리. 시리즈마다 표지·제목·소개만 보이고, 글 목록은 토글 안에 있다.
+# 시리즈 정보는 _data/series.yml, 묶음은 글 머리말의 series 값. 최근 글이 있는 시리즈가 앞에 온다.
+title: 시리즈
+icon: fas fa-layer-group
+order: 1
+---
+{%- assign keys = site.posts | map: "series" | compact | uniq -%}
+<div class="series-lib">
+{%- for key in keys -%}
+  {%- assign meta = site.data.series | where: "key", key | first -%}
+  {%- assign posts = site.posts | where: "series", key | sort: "date" -%}
+  {%- assign first = posts | first -%}
+  {%- assign last = posts | last -%}
+  {%- assign s_title = meta.title | default: first.series_title | default: key -%}
+  {%- assign s_desc = meta.description | default: first.description -%}
+  {%- assign s_image = meta.image | default: first.image.path %}
+  <section class="series-card" id="{{ key }}">
+    <a class="series-thumb" href="{{ first.url | relative_url }}" aria-label="{{ s_title | escape }} 첫 글 읽기"
+      {%- if s_image %} style="background-image: url('{{ s_image | relative_url }}')"{% endif %}></a>
+    <div class="series-body">
+      <h2 class="series-title"><a href="{{ first.url | relative_url }}">{{ s_title | escape }}</a></h2>
+      <p class="series-desc">{{ s_desc | escape }}</p>
+      <p class="series-meta">{{ posts.size }}개의 글 · 마지막 업데이트 {{ last.date | date: "%Y-%m-%d" }}</p>
+      <details class="series-posts">
+        <summary>글 목록</summary>
+        <ol>
+        {%- for post in posts %}
+          <li><a href="{{ post.url | relative_url }}">{{ post.title | escape }}</a></li>
+        {%- endfor %}
+        </ol>
+      </details>
+    </div>
+  </section>
+{%- endfor -%}
+
+{%- assign notes = site.posts | where_exp: "p", "p.categories[1] == '실습 노트'" | where_exp: "p", "p.series == nil" | sort: "date" -%}
+{%- if notes.size > 0 -%}
+  {%- assign first = notes | first -%}
+  {%- assign last = notes | last %}
+  <section class="series-card" id="notes">
+    <a class="series-thumb" href="{{ first.url | relative_url }}" aria-label="실습 노트 첫 글 읽기"
+      {%- if first.image.path %} style="background-image: url('{{ first.image.path | relative_url }}')"{% endif %}></a>
+    <div class="series-body">
+      <h2 class="series-title"><a href="{{ first.url | relative_url }}">실습 노트</a></h2>
+      <p class="series-desc">책의 각 장을 실습하면서 겪은 문제와 해결 과정.</p>
+      <p class="series-meta">{{ notes.size }}개의 글 · 마지막 업데이트 {{ last.date | date: "%Y-%m-%d" }}</p>
+      <details class="series-posts">
+        <summary>글 목록</summary>
+        <ol>
+        {%- for post in notes %}
+          <li><a href="{{ post.url | relative_url }}">{{ post.title | escape }}</a></li>
+        {%- endfor %}
+        </ol>
+      </details>
+    </div>
+  </section>
+{%- endif %}
+</div>

@@ -1,0 +1,11 @@
+# 시리즈 목록. 글 머리말의 series 값(key)으로 글을 묶는다.
+# 시리즈 탭(_tabs/series.html), 글 위의 시리즈 박스(_includes/series-nav.html),
+# 글쓰기 화면(/write/)이 이 파일을 읽는다. 글쓰기 화면에서 새 시리즈를 만들면 여기에 항목이 추가된다.
+- key: mlops-drift
+  title: "MLOps 실습 시리즈"
+  description: "《Design a Machine Learning System (From Scratch)》 실습 기록. 1부는 드리프트 감시와 재학습 판단(6–7장), 2부는 객체 탐지·영화 추천 파이프라인(7~11장)."
+  image: /assets/img/posts/mlops-drift-00.svg
+- key: llmops-assistant
+  title: "LLMOps 구축기"
+  description: "블로그 글만 근거로 답하는 AI 비서를 보안 원칙부터 세우고, Cloudflare Workers와 OpenAI로 배포·운영한 기록."
+  image: /assets/img/posts/llmops-arch-dark.svg

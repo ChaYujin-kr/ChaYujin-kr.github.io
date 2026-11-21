@@ -1,5 +1,6 @@
 {%- comment -%}
 Chirpy head 확장 지점
+- 글쓰기 링크(사이드바): /write/ 를 열어 본 브라우저에서만 → write.html, assets/js/write.js
 - 시리즈 목차 박스 스타일
 - 글 읽기 진행 바
 - 상단 바 도구 (모든 페이지): 사이드바 접기, 번역(EN 메뉴), 듣기(메뉴) → assets/js/site-tools.js
@@ -232,3 +233,23 @@ document.addEventListener("DOMContentLoaded", () => {
 </script>
 {%- endif %}
 
+<script>
+  /* 글쓰기 링크: 글쓰기 화면(/write/)을 열어 본 브라우저의 사이드바에만 보인다. 방문자에게는 나타나지 않는다. */
+  document.addEventListener("DOMContentLoaded", () => {
+    try { if (localStorage.getItem("write-enabled") !== "1") return; } catch { return; }
+    const nav = document.querySelector("#sidebar ul.nav");
+    if (!nav) return;
+    const li = document.createElement("li");
+    li.className = "nav-item";
+    const a = document.createElement("a");
+    a.className = "nav-link";
+    a.href = {{ '/write/' | relative_url | jsonify }};
+    const i = document.createElement("i");
+    i.className = "fa-fw fas fa-pen";
+    const span = document.createElement("span");
+    span.textContent = "글쓰기";
+    a.append(i, " ", span);
+    li.append(a);
+    nav.append(li);
+  }, { once: true });
+</script>

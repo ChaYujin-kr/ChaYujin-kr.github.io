@@ -1,0 +1,120 @@
+/* 글쓰기 화면 (/write/). 블로그 테마와 따로 도는 단독 화면이라 색과 서체를 여기서 정한다. */
+@import url("../fonts/pretendard/pretendardvariable-dynamic-subset.css");
+
+:root {
+  --w-bg: #ffffff; --w-panel: #f6f8fa; --w-text: #1f2328; --w-muted: #57606a; --w-border: #d0d7de;
+  --w-accent: #0b5cad; --w-accent-text: #ffffff; --w-danger: #b42318; --w-code: #f0f2f5;
+  --w-font: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --w-mono: "Fira Code", Consolas, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --w-bg: #1b1b1e; --w-panel: #232327; --w-text: #e6e6e6; --w-muted: #a0a0a8; --w-border: #3a3a40;
+    --w-accent: #6cb2ff; --w-accent-text: #0b1b2b; --w-danger: #ff8a80; --w-code: #2a2a30; }
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--w-bg); color: var(--w-text); font-family: var(--w-font); font-size: 16px; line-height: 1.7; }
+[hidden] { display: none !important; }
+button, input, textarea { font: inherit; color: inherit; }
+a { color: var(--w-accent); }
+:focus-visible { outline: 3px solid var(--w-accent); outline-offset: 2px; }
+
+#write-app { display: flex; flex-direction: column; height: 100%; }
+
+/* 위 막대 */
+.w-bar { display: flex; align-items: center; gap: .75rem; padding: .6rem 1rem; border-bottom: 1px solid var(--w-border); }
+.w-back { text-decoration: none; font-weight: 600; }
+.w-status { margin-left: auto; font-size: .85rem; color: var(--w-muted); }
+.w-primary, .w-ghost { border-radius: 8px; padding: .45rem 1rem; font-weight: 600; cursor: pointer; border: 1px solid var(--w-border); background: transparent; }
+.w-primary { background: var(--w-accent); color: var(--w-accent-text); border-color: var(--w-accent); }
+.w-primary:disabled, .w-ghost:disabled { opacity: .55; cursor: default; }
+.w-link { border: 0; background: none; padding: 0; color: var(--w-accent); cursor: pointer; font-size: .85rem; text-decoration: underline; }
+.w-only-narrow { display: none; }
+
+/* 두 칸 */
+.w-main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; min-height: 0; }
+.w-pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.w-view { background: var(--w-panel); border-left: 1px solid var(--w-border); overflow-y: auto; }
+.w-title { border: 0; background: transparent; font-size: 1.9rem; font-weight: 800; padding: 1.5rem 2rem .75rem; width: 100%; }
+.w-title:focus { outline: none; }
+.w-body { flex: 1; border: 0; background: transparent; resize: none; padding: .5rem 2rem 4rem; font-family: var(--w-mono); font-size: .95rem; line-height: 1.75; width: 100%; }
+.w-body:focus { outline: none; }
+
+/* 미리보기 */
+.w-preview { padding: 1.5rem 2rem 4rem; overflow-wrap: anywhere; }
+.w-preview h1 { font-size: 1.9rem; line-height: 1.35; margin: 0 0 1.25rem; }
+.w-preview h2 { font-size: 1.4rem; margin: 2rem 0 .75rem; }
+.w-preview h3 { font-size: 1.15rem; margin: 1.5rem 0 .5rem; }
+.w-preview p { margin: 0 0 1rem; }
+.w-preview img { max-width: 100%; height: auto; border-radius: 6px; }
+.w-preview pre { background: var(--w-code); padding: .9rem 1rem; border-radius: 8px; overflow-x: auto; font-size: .88rem; line-height: 1.6; }
+.w-preview code { font-family: var(--w-mono); background: var(--w-code); padding: .1em .35em; border-radius: 4px; font-size: .9em; }
+.w-preview pre code { background: none; padding: 0; font-size: inherit; }
+.w-preview blockquote { margin: 0 0 1rem; padding: .25rem 1rem; border-left: 4px solid var(--w-border); color: var(--w-muted); }
+.w-preview table { border-collapse: collapse; margin: 0 0 1rem; display: block; overflow-x: auto; max-width: 100%; }
+.w-preview th, .w-preview td { border: 1px solid var(--w-border); padding: .4rem .7rem; text-align: left; }
+.w-preview th { background: var(--w-code); }
+.w-preview hr { border: 0; border-top: 1px solid var(--w-border); margin: 2rem 0; }
+.w-empty { color: var(--w-muted); }
+
+/* 게시 창 */
+.w-dialog { border: 1px solid var(--w-border); border-radius: 14px; padding: 0; width: min(58rem, calc(100% - 2rem)); max-height: calc(100% - 2rem);
+  background: var(--w-bg); color: var(--w-text); box-shadow: 0 20px 60px rgba(0, 0, 0, .3); }
+.w-dialog::backdrop { background: rgba(0, 0, 0, .5); }
+.w-dialog form, .w-result { padding: 1.5rem; }
+.w-dialog h2 { margin: 0 0 1rem; font-size: 1.25rem; }
+.w-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1.75rem; }
+.w-col { min-width: 0; }
+.w-dialog fieldset { border: 0; padding: 0; margin: 0 0 1.4rem; min-width: 0; }
+.w-dialog legend { font-weight: 700; padding: 0; margin-bottom: .5rem; }
+.w-dialog label { display: block; font-size: .85rem; color: var(--w-muted); margin-bottom: .55rem; }
+.w-dialog input[type="text"], .w-dialog input[type="password"], .w-dialog textarea {
+  display: block; width: 100%; margin-top: .2rem; padding: .45rem .6rem; border: 1px solid var(--w-border); border-radius: 6px; background: var(--w-bg); color: var(--w-text); font-size: .92rem; }
+.w-dialog textarea { resize: vertical; line-height: 1.6; }
+.w-dialog small { display: block; font-size: .8rem; color: var(--w-muted); }
+.w-short { max-width: 6rem; }
+.w-thumb { display: block; width: 100%; aspect-ratio: 1200 / 630; object-fit: cover; border-radius: 8px; border: 1px solid var(--w-border); background: var(--w-panel); margin-bottom: .6rem; }
+.w-thumb-none { visibility: hidden; height: 0; aspect-ratio: auto; margin: 0; border: 0; }
+.w-radios { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin-bottom: .5rem; }
+.w-radios label, .w-inline { display: inline-flex; align-items: center; gap: .35rem; margin: 0; color: var(--w-text); font-size: .9rem; }
+.w-sub { border-left: 3px solid var(--w-border); padding-left: .8rem; margin-top: .5rem; }
+.w-swatches { display: flex; gap: .5rem; margin: .3rem 0 .2rem; }
+.w-swatch { width: 2rem; height: 2rem; border-radius: 50%; border: 2px solid var(--w-border); cursor: pointer; padding: 0; }
+.w-swatch[aria-pressed="true"] { border-color: var(--w-accent); box-shadow: 0 0 0 2px var(--w-accent); }
+.w-row { display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; margin-top: .3rem; }
+.w-count { font-size: .8rem; color: var(--w-muted); white-space: nowrap; }
+.w-count.w-over { color: var(--w-danger); font-weight: 700; }
+.w-series-list { border: 1px solid var(--w-border); border-radius: 8px; max-height: 13rem; overflow-y: auto; }
+.w-dialog .w-series-item { display: flex; align-items: center; gap: .5rem; margin: 0; padding: .5rem .7rem; color: var(--w-text); font-size: .92rem; cursor: pointer; border-bottom: 1px solid var(--w-border); }
+.w-dialog .w-series-item:last-child { border-bottom: 0; }
+.w-series-item:has(input:checked) { background: var(--w-panel); font-weight: 700; }
+.w-dialog .w-series-item small { margin-left: auto; font-weight: 400; }
+.w-two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 .75rem; }
+.w-url { margin: -.3rem 0 .6rem; overflow-wrap: anywhere; }
+.w-help { margin-top: .5rem; font-size: .85rem; color: var(--w-muted); }
+.w-help summary { cursor: pointer; color: var(--w-accent); }
+.w-help ol { padding-left: 1.2rem; margin: .5rem 0; }
+.w-help p { margin: .5rem 0 0; }
+.w-errors { margin: 0 0 1rem; padding: .7rem 1rem .7rem 2rem; border: 1px solid var(--w-danger); border-radius: 8px; color: var(--w-danger); font-size: .9rem; }
+.w-actions { display: flex; justify-content: flex-end; gap: .6rem; flex-wrap: wrap; }
+.w-result h2 { margin-bottom: .75rem; }
+.w-result button { border-radius: 8px; padding: .45rem 1rem; font-weight: 600; cursor: pointer; border: 1px solid var(--w-border); background: transparent; }
+
+/* 좁은 화면: 한 칸만 보이고 버튼으로 바꾼다 */
+@media (max-width: 860px) {
+  .w-only-narrow { display: inline-block; }
+  .w-main { grid-template-columns: 1fr; }
+  .w-view { display: none; border-left: 0; }
+  .w-show-preview .w-view { display: flex; }
+  .w-show-preview .w-edit { display: none; }
+  .w-title, .w-body, .w-preview { padding-left: 1rem; padding-right: 1rem; }
+  .w-title { font-size: 1.5rem; }
+  .w-grid { grid-template-columns: 1fr; }
+  .w-status { display: none; }
+  .w-open, #w-open { margin-left: auto; }
+  #w-toggle { margin-left: auto; }
+  #w-toggle + #w-open { margin-left: 0; }
+}
+@media (prefers-contrast: more) { :root { --w-border: currentColor; } }

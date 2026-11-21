@@ -1,0 +1,132 @@
+---
+layout: null
+permalink: /write/
+sitemap: false
+---
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="referrer" content="no-referrer">
+  <!-- 토큰을 다루는 화면: 스크립트는 이 사이트의 파일만, 외부 연결은 GitHub API만 허용. 분석·댓글·AI 스크립트는 넣지 않는다. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self'; connect-src 'self' https://api.github.com; base-uri 'none'; form-action 'none'">
+  <title>글쓰기 | {{ site.title }}</title>
+  <link rel="stylesheet" href="{{ '/assets/css/write.css' | relative_url }}?v={{ site.time | date: '%s' }}">
+</head>
+<body>
+<div id="write-app">
+  <header class="w-bar">
+    <a class="w-back" href="{{ '/' | relative_url }}">← 블로그</a>
+    <span id="w-status" class="w-status" role="status" aria-live="polite"></span>
+    <button type="button" id="w-toggle" class="w-ghost w-only-narrow" aria-pressed="false">미리보기</button>
+    <button type="button" id="w-open" class="w-primary">게시하기</button>
+  </header>
+
+  <main class="w-main">
+    <section class="w-pane w-edit" aria-label="편집">
+      <input id="w-title" class="w-title" type="text" placeholder="제목을 입력하세요" aria-label="제목" autocomplete="off" maxlength="120">
+      <textarea id="w-body" class="w-body" placeholder="마크다운으로 내용을 적어 보세요…" aria-label="본문 (마크다운)" spellcheck="false"></textarea>
+    </section>
+    <section class="w-pane w-view" aria-label="미리보기">
+      <article id="w-preview" class="w-preview"></article>
+    </section>
+  </main>
+</div>
+
+<dialog id="w-dialog" class="w-dialog" aria-labelledby="w-dialog-title">
+  <form id="w-form" method="dialog" data-config="{{ '/assets/data/write.json' | relative_url }}" novalidate>
+    <h2 id="w-dialog-title">게시 설정</h2>
+    <div class="w-grid">
+      <div class="w-col">
+        <fieldset>
+          <legend>썸네일</legend>
+          <img id="w-thumb" class="w-thumb" alt="썸네일 미리보기" data-proofer-ignore>
+          <div class="w-radios">
+            <label><input type="radio" name="thumb" value="auto" checked> 자동 표지</label>
+            <label><input type="radio" name="thumb" value="upload"> 이미지 올리기</label>
+            <label><input type="radio" name="thumb" value="none"> 없음</label>
+          </div>
+          <div id="w-thumb-auto" class="w-sub">
+            <label>위 문구 <input id="w-cover-label" type="text" maxlength="30"></label>
+            <label>번호 <input id="w-cover-number" type="text" maxlength="3" class="w-short"></label>
+            <label>큰 문구 <input id="w-cover-text" type="text" maxlength="30"></label>
+            <div id="w-cover-colors" class="w-swatches" role="group" aria-label="표지 색"></div>
+          </div>
+          <div id="w-thumb-file" class="w-sub" hidden>
+            <label>이미지 파일 (2MB 이하) <input type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"></label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>요약</legend>
+          <textarea id="w-summary" rows="4" aria-describedby="w-summary-help"></textarea>
+          <div class="w-row">
+            <small id="w-summary-help">기본값은 본문 앞 100자입니다. 글 목록과 검색 결과에 나옵니다.</small>
+            <span id="w-summary-count" class="w-count"></span>
+          </div>
+          <button type="button" id="w-summary-reset" class="w-link">본문에서 다시 가져오기</button>
+        </fieldset>
+      </div>
+
+      <div class="w-col">
+        <fieldset>
+          <legend>시리즈</legend>
+          <div id="w-series-list" class="w-series-list"></div>
+          <div id="w-series-new" class="w-sub" hidden>
+            <label>시리즈 제목 <input id="w-new-title" type="text" maxlength="60"></label>
+            <label>키 (영문, 주소에 쓰임) <input id="w-new-key" type="text" maxlength="40" placeholder="my-series"></label>
+            <label>소개 <textarea id="w-new-desc" rows="2" maxlength="200"></textarea></label>
+            <small>이 글의 썸네일이 시리즈 표지가 됩니다.</small>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>주소와 분류</legend>
+          <label>주소 (영문) <input id="w-slug" type="text" maxlength="60" placeholder="my-first-post" autocomplete="off"></label>
+          <small id="w-url-hint" class="w-url"></small>
+          <div class="w-two">
+            <label>카테고리 <input id="w-cat1" type="text" list="w-cat1-list" maxlength="30"></label>
+            <label>하위 카테고리 <input id="w-cat2" type="text" list="w-cat2-list" maxlength="30"></label>
+          </div>
+          <label>태그 (쉼표로 구분) <input id="w-tags" type="text" list="w-tags-list" maxlength="120" placeholder="mlops, kubeflow"></label>
+          <datalist id="w-cat1-list"></datalist><datalist id="w-cat2-list"></datalist><datalist id="w-tags-list"></datalist>
+        </fieldset>
+
+        <fieldset>
+          <legend>GitHub 토큰</legend>
+          <input id="w-token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…" aria-describedby="w-token-help">
+          <div class="w-row">
+            <label class="w-inline"><input id="w-remember" type="checkbox"> 이 브라우저에 기억하기</label>
+            <button type="button" id="w-forget" class="w-link">토큰 지우기</button>
+          </div>
+          <details id="w-token-help" class="w-help">
+            <summary>토큰 만드는 법</summary>
+            <ol>
+              <li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Fine-grained 토큰 만들기</a>를 연다.</li>
+              <li>Repository access는 <b>Only select repositories</b>에서 이 블로그 저장소 하나만 고른다.</li>
+              <li>Permissions의 <b>Contents</b>를 <b>Read and write</b>로 한다. 다른 권한은 주지 않는다.</li>
+              <li>만료일을 짧게 잡는다.</li>
+            </ol>
+            <p>토큰은 이 브라우저에서 GitHub로만 전송됩니다. 기억하기를 끄면 탭을 닫을 때 지워집니다. 공용 컴퓨터에서는 기억하기를 쓰지 마세요.</p>
+          </details>
+        </fieldset>
+      </div>
+    </div>
+
+    <ul id="w-errors" class="w-errors" role="alert" hidden></ul>
+    <div class="w-actions">
+      <button type="button" id="w-cancel" class="w-ghost">취소</button>
+      <button type="button" id="w-download" class="w-ghost">파일로 내려받기</button>
+      <button type="submit" id="w-publish" class="w-primary">게시하기</button>
+    </div>
+  </form>
+  <div id="w-result" class="w-result" hidden></div>
+</dialog>
+
+<script src="{{ '/assets/js/thirdparty/marked.min.js' | relative_url }}"></script>
+<script src="{{ '/assets/js/thirdparty/purify.min.js' | relative_url }}"></script>
+<script src="{{ '/assets/js/write.js' | relative_url }}?v={{ site.time | date: '%s' }}"></script>
+</body>
+</html>

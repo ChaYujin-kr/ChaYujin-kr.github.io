@@ -1,0 +1,19 @@
+---
+layout: null
+sitemap: false
+---
+{%- comment -%} 글쓰기 화면(/write/, assets/js/write.js)이 읽는 목록: 저장소, 시리즈, 카테고리, 태그, 이미 있는 글 주소. 공개 정보만. {%- endcomment -%}
+{%- assign keys = site.posts | map: "series" | compact | uniq -%}
+{%- assign cats = "" | split: "" -%}
+{%- for p in site.posts -%}{%- assign pair = p.categories | join: "||" -%}{%- unless cats contains pair -%}{%- assign cats = cats | push: pair -%}{%- endunless -%}{%- endfor -%}
+{
+  "repo": {{ site.github.username | append: "/" | append: site.github.username | append: ".github.io" | jsonify }},
+  "branch": "main",
+  "siteTitle": {{ site.title | jsonify }},
+  "series": [{% for key in keys %}{% assign meta = site.data.series | where: "key", key | first %}{% assign posts = site.posts | where: "series", key %}{% assign first = posts | last %}
+    {"key": {{ key | jsonify }}, "title": {{ meta.title | default: first.series_title | default: key | jsonify }}, "count": {{ posts.size }}}{% unless forloop.last %},{% endunless %}{% endfor %}
+  ],
+  "categories": [{% for c in cats %}{{ c | split: "||" | jsonify }}{% unless forloop.last %}, {% endunless %}{% endfor %}],
+  "tags": [{% for t in site.tags %}{{ t[0] | jsonify }}{% unless forloop.last %}, {% endunless %}{% endfor %}],
+  "postUrls": [{% for p in site.posts %}{{ p.url | jsonify }}{% unless forloop.last %}, {% endunless %}{% endfor %}]
+}
