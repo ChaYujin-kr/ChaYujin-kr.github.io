@@ -1,4 +1,4 @@
 # 글쓰기 화면(/write/) 설정. 공개 값만 둔다.
 # publish_endpoint: 게시 서버(Cloudflare Worker blog-assistant-publish) 주소.
 #   비어 있으면 GitHub 토큰을 직접 넣어 게시하고, 채우면 관리자 Google 로그인만으로 게시한다.
-publish_endpoint: ""
+publish_endpoint: "https://blog-assistant-publish.chauujjiinn.workers.dev"
