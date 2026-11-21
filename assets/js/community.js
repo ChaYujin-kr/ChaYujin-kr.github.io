@@ -92,6 +92,8 @@
   const icon = (cls) => { const i = el("i", { class: cls, "aria-hidden": "true" }); return i; };
 
   let session = readSession(tab.get("cm-session"), Date.now());
+  /* 이미 주인으로 로그인된 탭: 로그인 버튼을 다시 누르지 않아도 관리자용 링크를 켠다 */
+  if (session && session.admin) { local.set("blog-admin", "1"); if (typeof root.blogAdminLinks === "function") root.blogAdminLinks(); }
   const setSession = (s) => {
     session = s;
     if (s) tab.set("cm-session", JSON.stringify(s)); else tab.del("cm-session");
